@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Perfect Magic Cube — Voxel Viewer</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <div id="toolbar">
+      <button data-rot="x+">X+ 90&deg;</button>
+      <button data-rot="x-">X- 90&deg;</button>
+      <button data-rot="y+">Y+ 90&deg;</button>
+      <button data-rot="y-">Y- 90&deg;</button>
+      <button data-rot="z+">Z+ 90&deg;</button>
+      <button data-rot="z-">Z- 90&deg;</button>
+      <button id="resetRotation" class="muted">回転リセット</button>
+      <button id="closeAll" class="muted">分離を閉じる</button>
+    </div>
+    <div id="stage">
+      <svg id="scene" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div id="hint">背景ドラッグで回転 &middot; 個々のブロックの境目にカーソルを合わせてクリックで開閉</div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
