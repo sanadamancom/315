@@ -4,12 +4,15 @@
 
 ## 構成
 
+GitHub Pages が `/docs` からの配信のみ対応のため、ビューアー一式は `docs/` 直下に置いている。
+
 - `docs/cube_data.json` — 正解データ（source of truth）。Walter Trump & Christian Boyer, 2003-11-13
-- `viewer/` — キューブを立体（アイソメトリック・遠近法）で表示するビューアー。ドラッグで自由回転、個々の1x1x1ブロックの境目をクリックして分離・復元できる
+- `docs/index.html` / `docs/style.css` / `docs/script.js` — キューブを立体（アイソメトリック・遠近法）で表示するビューアー本体
 
 ## viewer の使い方
 
-`viewer/index.html` をブラウザで開くだけで動作する（ビルド不要、素のHTML/CSS/JS）。
+GitHub Pages: `https://sanadamancom.github.io/315/`
+ローカル: `docs/index.html` をブラウザで開くだけで動作する（ビルド不要、素のHTML/CSS/JS）。
 
 - 背景をドラッグ：自由回転
 - 上部ボタン：90度単位のスナップ回転
