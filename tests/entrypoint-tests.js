@@ -21,18 +21,18 @@ console.log('== entrypoint (index.html) ==');
   check('index.htmlが旧js\\/main.jsを読み込まない', !/js\/main\.js/.test(html));
   check('repair.htmlが削除されている', !fs.existsSync(path.join(root, 'repair.html')));
 
-  const forbidden = ['ふつう','むずかしい','とても難しい','難易度選択','新しい問題','候補プール','組み合わせ検索','お助け機能','ランダム問題生成','中クリック','Shift＋クリック','測定履歴','測定機'];
-  check('index.htmlに旧3難易度ボタン等・旧操作説明が存在しない', forbidden.every(s => !html.includes(s)));
+  const forbidden = ['ふつう','むずかしい','とても難しい','難易度選択','新しい問題','候補プール','組み合わせ検索','お助け機能','ランダム問題生成','中クリック','Shift＋クリック','測定履歴','測定機','id="boardHud"','id="hudLineList"','id="hudDiagTitle"'];
+  check('index.htmlに旧3難易度ボタン等・旧HUDが存在しない', forbidden.every(s => !html.includes(s)));
 
-  const required = ['修復型パズル','固定セル117個','未確定セル8個','ライン診断','リセット','Undo'];
+  const required = ['修復型パズル','固定セル117個','未確定セル8個','リセット','Undo'];
   check('index.htmlに必須表記が揃っている', required.every(s => html.includes(s)));
 
-  // 診断HUDはメイン盤面側(board-area内)にあり、サイドバー(<aside>)内には重複表示しない。
+  // 診断一覧(旧board-hud)がサイドバーへ戻されていないこと、盤面内の凡例(board-legend)が存在すること。
   const asideMatch = html.match(/<aside[\s\S]*?<\/aside>/);
   const asideHtml = asideMatch ? asideMatch[0] : '';
-  check('診断HUD(hudLineList)がメイン盤面側に存在する', /id="hudLineList"/.test(html) && !/id="hudLineList"/.test(asideHtml));
-  check('サイドバーに診断一覧(hudLineList/lineList)が重複していない', !/id="hudLineList"/.test(asideHtml) && !/id="lineList"/.test(asideHtml));
-  check('board-hudがboard-area内にある(sidebarより前に出現)', html.indexOf('id="boardHud"') < html.indexOf('<aside'));
+  check('サイドバーに診断一覧・測定履歴が存在しない', !/id="lineList"|id="hudLineList"|id="measuredList"/.test(asideHtml));
+  check('board-area内に凡例(board-legend)が存在する', /class="board-legend"/.test(html));
+  check('board-area内に立体ラインバッジ用コンテナ(crossLevelBadges)が存在する', /id="crossLevelBadges"/.test(html));
 }
 
 console.log('== line labels (109本の表示名) ==');

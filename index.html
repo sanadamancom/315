@@ -21,6 +21,7 @@
   --ok:#5a8f6b;
   --warn:#c9a227;
   --bad:#b04a3f;
+  --under:#3b7fc4;
   --mono:'Fira Code',monospace;
   --serif:'Shippori Mincho',serif;
   --sans:'Zen Kaku Gothic New',sans-serif;
@@ -45,42 +46,38 @@ button:disabled{opacity:0.35;cursor:default;}
 button:disabled:hover{background:transparent;border-color:var(--brass-dim);color:var(--bone);}
 
 .app{display:flex;height:100%;}
-.board-area{flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column;min-width:0;}
+.board-area{flex:1;position:relative;overflow:hidden;display:flex;min-width:0;}
 .cube-wrap-outer{flex:1;position:relative;padding:16px 24px;overflow:auto;display:flex;align-items:center;justify-content:center;min-height:0;}
 #cubeWrap{position:relative;}
 
-/* ---- 盤面直上のHUD: 凡例 + 選択中セルのライン診断(常時自動計算、サイドバーとは重複させない) ---- */
-.board-hud{
-  flex-shrink:0;display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap;
-  padding:9px 20px;background:var(--panel);border-bottom:1px solid var(--line);
-  max-height:132px;overflow-y:auto;
+/* ---- 盤面内の凡例(サイドバーや別HUDへは出さない。空きスペースへ小さく置くだけ) ---- */
+.board-legend{
+  position:absolute;left:14px;bottom:14px;z-index:40;
+  background:rgba(15,11,9,0.82);border:1px solid var(--line);border-radius:5px;
+  padding:6px 10px;font-family:var(--mono);font-size:11px;color:var(--bone-dim);
+  pointer-events:none;white-space:nowrap;
 }
-.hud-legend{flex-shrink:0;min-width:200px;font-size:10.5px;color:var(--bone-dim);line-height:1.65;}
-.hud-legend-title{font-family:var(--serif);font-size:11.5px;color:var(--brass);margin-bottom:3px;}
-.hud-legend-item{display:flex;align-items:center;gap:6px;}
-.hud-swatch{width:10px;height:10px;border-radius:2px;flex-shrink:0;display:inline-block;}
-.hud-swatch.ok{background:var(--ok);}
-.hud-swatch.bad{background:var(--bad);}
-.hud-legend-note{color:var(--bone-dim);font-style:italic;margin-top:2px;}
+.board-legend b.eq{color:var(--ok);}
+.board-legend b.over{color:var(--bad);}
+.board-legend b.under{color:var(--under);}
 
-.hud-diag{flex:1;min-width:260px;}
-.hud-diag-title{font-family:var(--mono);font-size:11.5px;color:var(--bone);margin-bottom:5px;}
-.hud-diag-title .tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:6px;border:1px solid var(--brass-dim);color:var(--bone-dim);}
-.hud-diag-title .tag.unlocked{border-color:var(--warn);color:var(--warn);}
-.hud-lines{display:flex;flex-wrap:wrap;gap:6px;}
-.hud-chip{
-  font-family:var(--mono);font-size:11px;background:var(--panel-2);border:1px solid var(--brass-dim);
-  border-radius:4px;padding:4px 8px;cursor:pointer;display:flex;align-items:center;gap:6px;
-  transition:background .1s ease;color:var(--bone-dim);
+/* ---- 選択セル付近に浮かぶ立体ライン(柱・縦断面対角線・空間対角線)バッジ ---- */
+#crossLevelBadges{
+  position:absolute;z-index:60;display:none;flex-direction:column;gap:4px;pointer-events:none;
 }
-.hud-chip:hover{border-color:var(--brass);}
-.hud-chip.active{background:var(--panel-2);outline:2px solid var(--brass);}
-.hud-chip .chip-label{color:var(--bone);}
-.hud-chip .chip-result{font-weight:700;}
-.hud-chip .chip-result.eq{color:var(--ok);}
-.hud-chip .chip-result.over{color:var(--bad);}
-.hud-chip .chip-result.under{color:#3b7fc4;}
-.hud-empty{font-size:11px;color:var(--bone-dim);font-style:italic;}
+.cross-badge{
+  pointer-events:auto;font-family:var(--mono);font-size:10.5px;
+  background:rgba(24,19,16,0.94);border:1px solid var(--brass-dim);border-radius:4px;
+  padding:3px 8px;cursor:pointer;display:flex;gap:7px;align-items:center;white-space:nowrap;
+  transition:border-color .1s ease;
+}
+.cross-badge:hover{border-color:var(--brass);}
+.cross-badge.active{outline:2px solid var(--brass);}
+.cross-badge .cb-label{color:var(--bone);}
+.cross-badge .cb-result{font-weight:700;}
+.cross-badge .cb-result.eq{color:var(--ok);}
+.cross-badge .cb-result.over{color:var(--bad);}
+.cross-badge .cb-result.under{color:var(--under);}
 
 .sidebar{
   width:340px;flex-shrink:0;height:100%;overflow-y:auto;
@@ -110,14 +107,24 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
 .level-slot{}
 .level-card{background:transparent;border:none;padding:0;width:max-content;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;position:relative;}
 .level-svg{display:block;max-width:100%;height:auto;overflow:visible;}
-.wall-label, .edge-label{display:none;} /* 常時表示の合計ラベルは修復モードでは非表示 */
+
+/* 行・列・層内対角線(60本)の状態を盤面の側面・角へ直接表示する。実際の合計値/差分は出さない。 */
+.wall-label, .edge-label{
+  font-family:var(--mono);font-weight:800;cursor:pointer;pointer-events:auto;
+  paint-order:stroke;stroke:rgba(0,0,0,0.6);stroke-width:3px;stroke-linejoin:round;
+  font-size:17px;
+}
+.edge-label{font-size:15px;}
+.wall-label.stat-eq, .edge-label.stat-eq{fill:var(--ok);}
+.wall-label.stat-over, .edge-label.stat-over{fill:var(--bad);}
+.wall-label.stat-under, .edge-label.stat-under{fill:var(--under);}
 
 .iso-cell{cursor:pointer;}
-.iso-cell .cube-face{transition:filter .1s ease, fill .12s ease;}
+.iso-cell .cube-face{transition:filter .1s ease;}
 .iso-cell:hover .cube-face{filter:brightness(1.3);}
 .cube-label{font-family:var(--mono);font-weight:700;font-size:21px;pointer-events:none;fill:var(--bone);}
 
-/* locked(固定)セル: 白文字・カーソル通常。line-healthの背景色とは独立して維持する。 */
+/* locked(固定)セル: 白文字・カーソル通常。 */
 .iso-cell.given{cursor:default;}
 .iso-cell.given .cube-label{fill:#ffffff;}
 
@@ -125,28 +132,28 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
 .iso-cell.repair-unlocked .cube-face{stroke:var(--brass);stroke-width:1.8;stroke-dasharray:4,3;}
 .iso-cell.repair-unlocked .cube-label{fill:var(--warn);}
 
-/* ---- ライン整合度による常時着色 (全125セル対象。正解セル比較は使わず、そのセルを通る
-   全ラインの合計が315かどうかだけで決める)。数字を読めるよう半透明で塗るだけに留める。 ---- */
-.iso-cell.line-health-ok .cube-face{fill:var(--ok);fill-opacity:0.34;}
-.iso-cell.line-health-bad .cube-face{fill:var(--bad);fill-opacity:0.34;}
+/* ---- ライン整合度(常時)。cube-faceのfillには一切触れず、内側へ縮めた透明輪郭の
+   strokeだけで示す。5階層本来の背景色・側面色は完全に維持される。 ---- */
+.iso-cell.line-health-ok .cell-diag-outline{stroke:var(--ok);stroke-width:2.2;}
+.iso-cell.line-health-bad .cell-diag-outline{stroke:var(--bad);stroke-width:2.2;}
 
-/* 強調中のライン(HUD診断チップのクリックで選択)。枠色だけで＝/↑/↓を示し、背景色より優先して見える。 */
-.iso-cell.diag-eq .cube-face{filter:brightness(1.4);stroke:var(--ok) !important;stroke-width:2.6 !important;}
-.iso-cell.diag-over .cube-face{filter:brightness(1.4);stroke:var(--bad) !important;stroke-width:2.6 !important;}
-.iso-cell.diag-under .cube-face{filter:brightness(1.4);stroke:#3b7fc4 !important;stroke-width:2.6 !important;}
+/* 強調中のライン(側面ラベル/立体バッジのクリックで選択)。cube-face自身の縁を太く色付けする
+   ことで、常時の診断輪郭より優先して見える。 */
+.iso-cell.diag-eq .cube-face{filter:brightness(1.4);stroke:var(--ok) !important;stroke-width:2.8 !important;}
+.iso-cell.diag-over .cube-face{filter:brightness(1.4);stroke:var(--bad) !important;stroke-width:2.8 !important;}
+.iso-cell.diag-under .cube-face{filter:brightness(1.4);stroke:var(--under) !important;stroke-width:2.8 !important;}
 
-/* 交換元の選択表示: 背景色・ライン強調とは別の明確な白枠。最優先で見える。 */
+/* 交換元の選択表示: 最優先の白枠。 */
 .iso-cell.cell-selected .cube-face{filter:brightness(1.5) saturate(1.3);stroke:#fff !important;stroke-width:3 !important;stroke-dasharray:none;}
 
-/* ---- 交換アニメーション用の一時バッジ(実際のSVGラベルとは別のfixed要素) ---- */
-.swap-badge{
-  position:fixed;z-index:2000;pointer-events:none;
-  display:flex;align-items:center;justify-content:center;
-  font-family:var(--mono);font-weight:700;font-size:21px;color:var(--warn);
-  text-shadow:0 0 6px rgba(0,0,0,0.6);
+/* ---- 交換アニメーション用のタイル面ゴースト(菱形の面+数字+縁を複製した一時SVG) ---- */
+.swap-ghost{
+  position:fixed;z-index:2000;pointer-events:none;overflow:visible;
+  filter:drop-shadow(0 8px 14px rgba(0,0,0,0.55));
 }
+.swap-ghost .cube-label{fill:var(--bone);}
 @media (prefers-reduced-motion: reduce){
-  .swap-badge{transition:none !important;}
+  .swap-ghost{transition:none !important;}
 }
 </style>
 </head>
@@ -154,21 +161,11 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
 
 <div class="app">
   <div class="board-area">
-    <div class="board-hud" id="boardHud">
-      <div class="hud-legend">
-        <div class="hud-legend-title">ライン整合度(常時表示)</div>
-        <div class="hud-legend-item"><span class="hud-swatch ok"></span>緑：このセルを通る全ラインが315</div>
-        <div class="hud-legend-item"><span class="hud-swatch bad"></span>赤：315でないラインを含む</div>
-        <div class="hud-legend-note">※数字単体の正誤表示ではありません。正しい固定セルでも、不成立のラインに含まれていれば赤くなります。</div>
-      </div>
-      <div class="hud-diag">
-        <div class="hud-diag-title" id="hudDiagTitle">マスをクリックすると、ここに所属ラインの状態(＝/↑/↓)が表示されます</div>
-        <div class="hud-lines" id="hudLineList"></div>
-      </div>
-    </div>
     <div class="cube-wrap-outer">
       <div class="cube-wrap" id="cubeWrap"></div>
     </div>
+    <div class="board-legend">＝ <b class="eq">315</b>　↑ <b class="over">315超過</b>　↓ <b class="under">315未満</b></div>
+    <div id="crossLevelBadges"></div>
   </div>
 
   <aside class="sidebar">
@@ -192,8 +189,9 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
       </ul>
       <div class="caveat" style="margin-top:10px;">
         枠が破線の8マスだけ未確定です。数字の色や見た目で正誤は分かりません。
-        マスの背景色(緑/赤)は「そのマスを通るラインが全部315かどうか」を示すだけで、
-        マス単体の正誤ではありません。盤面上部のライン診断もあわせて確認してください。
+        マスの縁の色(緑/赤)は「そのマスを通るラインが全部315かどうか」を示すだけで、
+        マス単体の正誤ではありません。行・列・層内対角線の状態は各盤面の側面・角に、
+        柱や空間対角線などの状態はマスを選ぶと近くにバッジで表示されます。
       </div>
     </div>
   </aside>

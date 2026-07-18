@@ -386,6 +386,19 @@ function buildLevelCard(L){
       text.setAttribute('dominant-baseline','central');
       g.appendChild(text);
 
+      // 診断専用の透明な輪郭(既存のcube-face fillには一切触れない)。
+      // デフォルトはfill/stroke無しで完全に透明。専用CSSクラスが付いたときだけ縁が見える。
+      // 隣接セルの縁と重ならないよう、セル中心に向けて少し内側へ縮めてある。
+      const DIAG_INSET = 0.84;
+      const insetPt = (p) => ({ x: center.x + (p.x-center.x)*DIAG_INSET, y: center.y + (p.y-center.y)*DIAG_INSET });
+      const diagOutline = document.createElementNS(SVG_NS,'polygon');
+      diagOutline.setAttribute('class','cell-diag-outline');
+      diagOutline.setAttribute('points', pointsAttr([p1,p2,p3,p4].map(insetPt)));
+      diagOutline.setAttribute('fill','none');
+      diagOutline.setAttribute('pointer-events','none');
+      diagOutline.setAttribute('stroke-linejoin','round');
+      g.appendChild(diagOutline);
+
       board.appendChild(g);
     }
   }
