@@ -57,7 +57,6 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
   padding:6px 10px;font-family:var(--mono);font-size:11px;color:var(--bone-dim);
   pointer-events:none;white-space:nowrap;
 }
-.board-legend b.eq{color:var(--ok);}
 .board-legend b.over{color:var(--bad);}
 .board-legend b.under{color:var(--under);}
 
@@ -90,6 +89,17 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
 .caveat{font-size:10.5px;color:var(--bone-dim);background:var(--bg);border:1px solid var(--line);padding:8px 10px;border-radius:4px;line-height:1.7;}
 .controls-list{list-style:none;margin:0;padding:0;font-size:11px;color:var(--bone-dim);line-height:1.9;}
 .controls-list li::before{content:"・";color:var(--brass);margin-right:2px;}
+
+/* ---- 成立ライン総数(サイドバーのみ。盤面/LEVEL表示には出さない) ---- */
+#lineProgress{
+  display:flex;align-items:baseline;justify-content:space-between;
+  font-family:var(--mono);font-size:13px;color:var(--bone);
+  background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:8px 12px;
+}
+#lineProgress .label{font-family:var(--serif);font-size:12px;color:var(--brass);}
+#lineProgress #solvedLineCount{font-weight:700;color:var(--bone);}
+#lineProgress.complete #solvedLineCount{color:var(--ok);text-shadow:0 0 6px rgba(90,143,107,0.6);}
+
 .clear-overlay{
   position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;
   background:rgba(8,6,5,0.85);
@@ -106,23 +116,51 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
 .cube-wrap{}
 .level-slot{}
 .level-card{background:transparent;border:none;padding:0;width:max-content;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;position:relative;}
-.level-svg{display:block;max-width:100%;height:auto;overflow:visible;}
 
-/* 行・列・層内対角線(60本)の状態を盤面の側面・角へ直接表示する。実際の合計値/差分は出さない。 */
+/* ---- 過去版から復元したpointer-events制御。SVGの透明な矩形全体をクリック不能にし、
+   実際に見えているcube-faceだけを有効化する(3LEVELの透明領域が背後の4/5LEVELの
+   クリックを奪う問題の対策)。z-index・DOM追加順・GAPは変更しない。 ---- */
+.level-svg{
+  display:block;
+  max-width:100%;
+  height:auto;
+  overflow:visible;
+  pointer-events:none;
+}
+.iso-cell{
+  cursor:pointer;
+  pointer-events:none;
+}
+.iso-cell .cube-face{
+  pointer-events:auto;
+}
+
+/* ---- LEVEL表示(過去版のtier-label CSS。index.html置換時に欠落していたものを復元) ---- */
+.tier-label{
+  font-family:var(--serif);
+  font-weight:700;
+  font-size:30px;
+  font-style:italic;
+  fill:rgba(255,255,255,0.85);
+  pointer-events:none;
+  letter-spacing:0.03em;
+}
+
+/* 行・列・層内対角線(60本): 315のラインは記号を出さない(pointer-events:noneはJS側で制御)。
+   不成立(↑/↓)のときだけ表示され、対応する側面区画も含めてクリック可能になる。 */
 .wall-label, .edge-label{
-  font-family:var(--mono);font-weight:800;cursor:pointer;pointer-events:auto;
+  font-family:var(--mono);font-weight:800;cursor:pointer;
   paint-order:stroke;stroke:rgba(0,0,0,0.6);stroke-width:3px;stroke-linejoin:round;
   font-size:17px;
 }
 .edge-label{font-size:15px;}
-.wall-label.stat-eq, .edge-label.stat-eq{fill:var(--ok);}
 .wall-label.stat-over, .edge-label.stat-over{fill:var(--bad);}
 .wall-label.stat-under, .edge-label.stat-under{fill:var(--under);}
+.row-wall-hit, .col-wall-hit, .diag-hit{cursor:pointer;}
 
-.iso-cell{cursor:pointer;}
 .iso-cell .cube-face{transition:filter .1s ease;}
 .iso-cell:hover .cube-face{filter:brightness(1.3);}
-.cube-label{font-family:var(--mono);font-weight:700;font-size:21px;pointer-events:none;fill:var(--bone);}
+.cube-label{font-family:var(--mono);font-weight:700;font-size:21px;pointer-events:none;fill:var(--bone);transition:opacity .15s ease, filter .15s ease;}
 
 /* locked(固定)セル: 白文字・カーソル通常。 */
 .iso-cell.given{cursor:default;}
@@ -132,28 +170,55 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
 .iso-cell.repair-unlocked .cube-face{stroke:var(--brass);stroke-width:1.8;stroke-dasharray:4,3;}
 .iso-cell.repair-unlocked .cube-label{fill:var(--warn);}
 
-/* ---- ライン整合度(常時)。cube-faceのfillには一切触れず、内側へ縮めた透明輪郭の
-   strokeだけで示す。5階層本来の背景色・側面色は完全に維持される。 ---- */
+/* 修復完了(クリア演出後)の見た目: 破線・金文字をやめ、固定セルのような表示へ移す。
+   内部の問題定義(isRepairUnlocked)は一切変更しない、見た目だけの切り替え。 */
+.iso-cell.repair-completed .cube-face{stroke-dasharray:none;}
+.iso-cell.repair-completed .cube-label{fill:#ffffff;}
+
+/* ---- ライン整合度(常時)。未確定8セルだけに付与される(固定117セルには付けない)。
+   cube-faceのfillには一切触れず、内側へ縮めた透明輪郭のstrokeだけで示す。 ---- */
 .iso-cell.line-health-ok .cell-diag-outline{stroke:var(--ok);stroke-width:2.2;}
 .iso-cell.line-health-bad .cell-diag-outline{stroke:var(--bad);stroke-width:2.2;}
 
-/* 強調中のライン(側面ラベル/立体バッジのクリックで選択)。cube-face自身の縁を太く色付けする
-   ことで、常時の診断輪郭より優先して見える。 */
-.iso-cell.diag-eq .cube-face{filter:brightness(1.4);stroke:var(--ok) !important;stroke-width:2.8 !important;}
-.iso-cell.diag-over .cube-face{filter:brightness(1.4);stroke:var(--bad) !important;stroke-width:2.8 !important;}
-.iso-cell.diag-under .cube-face{filter:brightness(1.4);stroke:var(--under) !important;stroke-width:2.8 !important;}
+/* ---- ラインフォーカス: 側面ラベル/立体バッジのクリックで選んだラインの対象5セルだけを
+   白/シアンで明確に強調し、対象外120セルを暗くする。色は＝/↑/↓の状態色と分離する。 ---- */
+.iso-cell.line-focus-target .cube-face{
+  filter:brightness(1.6) drop-shadow(0 0 7px rgba(180,255,255,0.85));
+  stroke:#eafcff !important;stroke-width:3 !important;
+}
+.iso-cell.line-focus-target .cube-label{
+  filter:drop-shadow(0 0 5px rgba(180,255,255,0.9));
+}
+.iso-cell.line-focus-dimmed .cube-face{filter:brightness(0.42);}
+.iso-cell.line-focus-dimmed .cube-label{opacity:0.5;}
+.iso-cell.line-focus-dimmed .cell-diag-outline{opacity:0.3;}
 
-/* 交換元の選択表示: 最優先の白枠。 */
-.iso-cell.cell-selected .cube-face{filter:brightness(1.5) saturate(1.3);stroke:#fff !important;stroke-width:3 !important;stroke-dasharray:none;}
+/* 交換元の選択表示: 最優先の白枠。ラインフォーカスやdimmedより常に前面に見える。 */
+.iso-cell.cell-selected .cube-face{filter:brightness(1.5) saturate(1.3) !important;stroke:#fff !important;stroke-width:3 !important;stroke-dasharray:none;}
 
-/* ---- 交換アニメーション用のタイル面ゴースト(菱形の面+数字+縁を複製した一時SVG) ---- */
+/* ---- 交換アニメーション用のタイル面ゴースト(菱形の面+数字+縁を複製した一時SVG)。
+   下の盤面が透けて見えないよう、複製したcube-faceのfill-opacityを引き上げる。 ---- */
 .swap-ghost{
   position:fixed;z-index:2000;pointer-events:none;overflow:visible;
   filter:drop-shadow(0 8px 14px rgba(0,0,0,0.55));
 }
-.swap-ghost .cube-label{fill:var(--bone);}
+.swap-ghost .cube-label{fill:var(--warn);}
 @media (prefers-reduced-motion: reduce){
   .swap-ghost{transition:none !important;}
+}
+
+/* ---- クリア演出: level-slot単位の穏やかなグロー(セルへ緑枠を付け直すのではなく、
+   階層カードごとに柔らかく光らせて上段→中央→下段の順に連鎖させる)。 ---- */
+.level-slot.wave-glow{
+  animation:waveGlow 260ms ease-out;
+}
+@keyframes waveGlow{
+  0%{filter:brightness(1) drop-shadow(0 0 0 rgba(90,224,150,0));}
+  40%{filter:brightness(1.35) drop-shadow(0 0 22px rgba(120,224,160,0.85));}
+  100%{filter:brightness(1) drop-shadow(0 0 0 rgba(90,224,150,0));}
+}
+@media (prefers-reduced-motion: reduce){
+  .level-slot.wave-glow{animation:none;}
 }
 </style>
 </head>
@@ -164,7 +229,7 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
     <div class="cube-wrap-outer">
       <div class="cube-wrap" id="cubeWrap"></div>
     </div>
-    <div class="board-legend">＝ <b class="eq">315</b>　↑ <b class="over">315超過</b>　↓ <b class="under">315未満</b></div>
+    <div class="board-legend">↑ <b class="over">315超過</b>　↓ <b class="under">315未満</b>　記号なし 315</div>
     <div id="crossLevelBadges"></div>
   </div>
 
@@ -178,20 +243,24 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
     </div>
 
     <div class="side-section">
+      <div id="lineProgress"><span class="label">成立ライン</span><span><span id="solvedLineCount">0</span> / 109</span></div>
+    </div>
+
+    <div class="side-section">
       <div class="side-h">操作方法</div>
       <ul class="controls-list">
         <li>左クリック：マスを選択</li>
         <li>未確定マスを2個クリック：数字を交換</li>
-        <li>ライン状態は自動診断されます</li>
-        <li>＝：315 / ↑：315超過 / ↓：315未満</li>
+        <li>不成立ライン(↑/↓)をクリックで対象マスを強調</li>
         <li>Ctrl＋Z：ひとつ戻す</li>
+        <li>Escape：選択・強調を解除</li>
         <li>正しい未確定マスと間違った未確定マスは同じ表示です</li>
       </ul>
       <div class="caveat" style="margin-top:10px;">
         枠が破線の8マスだけ未確定です。数字の色や見た目で正誤は分かりません。
-        マスの縁の色(緑/赤)は「そのマスを通るラインが全部315かどうか」を示すだけで、
-        マス単体の正誤ではありません。行・列・層内対角線の状態は各盤面の側面・角に、
-        柱や空間対角線などの状態はマスを選ぶと近くにバッジで表示されます。
+        未確定マスの縁の色(緑/赤)は「そのマスを通るラインが全部315かどうか」を示すだけで、
+        マス単体の正誤ではありません。行・列・層内対角線は不成立(↑/↓)のときだけ各盤面の
+        側面・角に記号が出ます。柱や空間対角線などの状態はマスを選ぶと近くにバッジで表示されます。
       </div>
     </div>
   </aside>

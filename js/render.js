@@ -315,6 +315,8 @@ function buildLevelCard(L){
         poly.setAttribute('stroke', LEVEL_LINE_COLOR[L]);
         poly.setAttribute('stroke-width', '1.3');
         poly.style.filter = 'brightness(0.6)'; poly.style.pointerEvents = 'none';
+        poly.setAttribute('class', 'col-wall-hit');
+        poly.dataset.l = L; poly.dataset.c = c;
         board.appendChild(poly);
 
         // this left-facing wall segment is indexed by column c -> shows the column sum
@@ -340,6 +342,8 @@ function buildLevelCard(L){
         poly.setAttribute('stroke', LEVEL_LINE_COLOR[L]);
         poly.setAttribute('stroke-width', '1.3');
         poly.style.filter = 'brightness(0.44)'; poly.style.pointerEvents = 'none';
+        poly.setAttribute('class', 'row-wall-hit');
+        poly.dataset.l = L; poly.dataset.r = r;
         board.appendChild(poly);
 
         // this right-facing wall segment is indexed by row r -> shows the row sum
@@ -415,6 +419,15 @@ function buildLevelCard(L){
     text.setAttribute('text-anchor','middle');
     text.setAttribute('dominant-baseline','central');
     board.appendChild(text);
+
+    const hit = document.createElementNS(SVG_NS,'circle');
+    hit.setAttribute('class','diag-hit diag-hit-main');
+    hit.dataset.l = L;
+    hit.setAttribute('cx', bottomV.x); hit.setAttribute('cy', bottomV.y + CELL_WALL + 13);
+    hit.setAttribute('r', 15);
+    hit.setAttribute('fill', 'transparent');
+    hit.style.pointerEvents = 'none';
+    board.appendChild(hit);
   }
   {
     const rightV = vertexPoint(0,N,TILE_W,TILE_H,originX);
@@ -426,6 +439,15 @@ function buildLevelCard(L){
     text.setAttribute('text-anchor','start');
     text.setAttribute('dominant-baseline','central');
     board.appendChild(text);
+
+    const hit = document.createElementNS(SVG_NS,'circle');
+    hit.setAttribute('class','diag-hit diag-hit-anti');
+    hit.dataset.l = L;
+    hit.setAttribute('cx', rightV.x + 13); hit.setAttribute('cy', rightV.y);
+    hit.setAttribute('r', 15);
+    hit.setAttribute('fill', 'transparent');
+    hit.style.pointerEvents = 'none';
+    board.appendChild(hit);
   }
 
   // Large "NLEVEL" label running along the upper-right edge (top vertex -> right vertex),

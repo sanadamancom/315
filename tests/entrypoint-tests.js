@@ -33,6 +33,37 @@ console.log('== entrypoint (index.html) ==');
   check('サイドバーに診断一覧・測定履歴が存在しない', !/id="lineList"|id="hudLineList"|id="measuredList"/.test(asideHtml));
   check('board-area内に凡例(board-legend)が存在する', /class="board-legend"/.test(html));
   check('board-area内に立体ラインバッジ用コンテナ(crossLevelBadges)が存在する', /id="crossLevelBadges"/.test(html));
+
+  // LEVEL表示CSSの復元
+  const tierBlock = html.match(/\.tier-label\s*\{[^}]*\}/);
+  check('.tier-label専用CSSが存在する', !!tierBlock);
+  if(tierBlock){
+    const css = tierBlock[0];
+    check('.tier-labelのfont-familyがvar(--serif)', /font-family:\s*var\(--serif\)/.test(css));
+    check('.tier-labelのfont-sizeが30px', /font-size:\s*30px/.test(css));
+    check('.tier-labelのfont-styleがitalic', /font-style:\s*italic/.test(css));
+    check('.tier-labelのfillが明るい白系', /fill:\s*rgba\(255,\s*255,\s*255,\s*0\.85\)/.test(css));
+  }
+  check('LEVEL文字列(NLEVEL生成)へ成立ライン数を追加していない(render.js側)', (()=>{
+    const renderJs = fs.readFileSync(path.join(root,'js/render.js'),'utf8');
+    const m = renderJs.match(/tierLabel\.textContent\s*=\s*`[^`]*`/);
+    return !!m && m[0] === 'tierLabel.textContent = `${L}LEVEL`';
+  })());
+
+  // pointer-events復元
+  check('.level-svgがpointer-events:noneを含む', /\.level-svg\s*\{[^}]*pointer-events:\s*none/.test(html));
+  check('.iso-cellがpointer-events:noneを含む(cube-face以外はクリック不能)', /\.iso-cell\s*\{[^}]*pointer-events:\s*none/.test(html));
+  check('.iso-cell .cube-faceがpointer-events:autoを含む', /\.iso-cell \.cube-face\s*\{[^}]*pointer-events:\s*auto/.test(html));
+
+  // z-index/DOM追加順/GAPはrender.js側で維持されているか(数値の決め打ちを確認)
+  const renderJsSrc = fs.readFileSync(path.join(root,'js/render.js'),'utf8');
+  check('zIndexが{5:1,4:1,3:2,2:3,1:3}のまま', /zIndex\s*=\s*\{\s*5:1,\s*4:1,\s*3:2,\s*2:3,\s*1:3\s*\}/.test(renderJsSrc));
+  check('DOM追加順が[5,4,3,2,1]のまま', /\[5,4,3,2,1\]\.forEach/.test(renderJsSrc));
+  check('GAPが110のまま', /const GAP = 110/.test(renderJsSrc));
+
+  // サイドバーの成立ライン進捗・旧凡例撤去
+  check('サイドバーに成立ライン進捗(lineProgress/solvedLineCount)がある', /id="lineProgress"/.test(asideHtml) && /id="solvedLineCount"/.test(asideHtml));
+  check('サイドバーに旧凡例(＝：315 / ↑：315超過 / ↓：315未満)が存在しない', !asideHtml.includes('＝：315'));
 }
 
 console.log('== line labels (109本の表示名) ==');

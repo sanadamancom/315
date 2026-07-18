@@ -8,13 +8,12 @@
 //   左クリック(選択中セルを再クリック) : 選択解除のみ。
 //   左クリック(固定セル)         : 交換待ちを解除し、そのセルを観察対象にする。
 //   右クリック                   : 何もしない(将来予約、contextmenuは抑止のみ)。
-//   Escape                       : 選択・ライン強調の解除。
+//   Escape                       : 選択・ラインフォーカスの解除。
 //   Ctrl+Z / Cmd+Z                : 直前の有効交換をUndo(巻き戻しアニメーション付き)。
 //
 // ライン状態(＝/↑/↓)は測定操作ではなく、常に現在の盤面から自動計算する
 // (measure.jsのmeasureLineをそのまま毎回呼ぶだけで「測定履歴」は持たない)。
-// セルの常時diag輪郭(line-health)も同様に、正解配列とは一切比較せず、
-// 「そのセルを通る全ラインの合計が315かどうか」だけで決める。
+// セルの常時diag輪郭(line-health)は未確定8セルだけに付与し、固定117セルには付けない。
 
 const ALL_LINES = buildLines109();
 const SWAP_ANIM_MS = 220;
@@ -26,11 +25,12 @@ const CROSS_LEVEL_TYPES = new Set(['pillar','xz-main','xz-anti','yz-main','yz-an
 
 let repairState = createInitialRepairState();
 let selectedCell = null;     // {L,r,c} | null — 観察対象 兼 交換元(未確定セルのときだけ交換元になる)
-let highlightedLineKey = null; // 側面ラベル/立体バッジのクリックで選んだ強調中ライン
+let highlightedLineKey = null; // 側面ラベル/立体バッジのクリックで選んだラインフォーカス対象
 let history = [];            // 有効交換のみのUndoスナップショット({state, selectedCell, highlightedLineKey, cleared, swapPair})
 let cleared = false;
-let animating = false;       // アニメーション中は追加のクリック/Undo/Resetを無視する
-let opGeneration = 0;        // Reset等で進行中の交換/Undoを無効化するための世代番号
+let celebrating = false;     // クリア演出(連鎖発光)の最中かどうか
+let animating = false;       // タイル交換アニメーション中は追加のクリック/Undo/Resetを無視する
+let opGeneration = 0;        // Reset等で進行中の交換/Undo/演出を無効化するための世代番号
 
 function cellKeyEq(a,b){ return !!a && !!b && a.L===b.L && a.r===b.r && a.c===b.c; }
 function cellDomKey(L,r,c){ return `${L}-${r}-${c}`; }
@@ -70,18 +70,14 @@ function computeAllLineStatuses(){
   return map;
 }
 
-// 全125セルの line-health ('ok' | 'bad')。正解配列とのセル単位比較は一切使わない。
+// line-healthは未確定8セルだけが対象(固定117セルには一切付与しない)。
 function computeCellHealth(lineStatuses){
   const health = {};
-  for(let L=1; L<=LEVELS; L++){
-    for(let r=0;r<N;r++){
-      for(let c=0;c<N;c++){
-        const key = cellDomKey(L,r,c);
-        const lines = CELL_LINE_INDEX[key] || [];
-        const bad = lines.some(lk => lineStatuses.get(lk) !== '=');
-        health[key] = bad ? 'bad' : 'ok';
-      }
-    }
+  for(const cell of REPAIR_CELLS){
+    const key = cellDomKey(cell.L, cell.r, cell.c);
+    const lines = CELL_LINE_INDEX[key] || [];
+    const bad = lines.some(lk => lineStatuses.get(lk) !== '=');
+    health[key] = bad ? 'bad' : 'ok';
   }
   return health;
 }
@@ -106,7 +102,7 @@ function findLayerDiagAnti(L){
 
 // ---- 盤面インタラクション ----
 function onCellClick(L,r,c){
-  if(animating) return;
+  if(animating || celebrating) return;
   const target = { L, r, c };
 
   if(cellKeyEq(selectedCell, target)){
@@ -134,7 +130,9 @@ function onCellClick(L,r,c){
 
 function onCellRightClick(){ /* 修復モードでは右クリックに新しい用途を割り当てない(noop) */ }
 
-function setLockButtons(locked){
+// UndoボタンとResetボタンのdisabled状態を一元管理する。
+function updateLockUI(){
+  const locked = animating || celebrating;
   document.getElementById('undoBtn').disabled = locked || history.length === 0;
   document.getElementById('resetBtn').disabled = locked;
 }
@@ -142,7 +140,7 @@ function setLockButtons(locked){
 // ---- 交換 (アニメーション込み。可否判定はonCellClick側で確定済み) ----
 function triggerSwap(a, b){
   animating = true;
-  setLockButtons(true);
+  updateLockUI();
   const gen = ++opGeneration;
 
   history.push({
@@ -159,18 +157,26 @@ function triggerSwap(a, b){
   return animateSwap(a, b, valueA, valueB).then(()=>{
     if(gen !== opGeneration) return; // Resetなどで無効化された古い完了処理は反映しない
     repairState = swapRepairCells(repairState, a, b);
-    checkCompletion();
+    highlightedLineKey = null; // 交換確定で古いラインフォーカスを解除する
     animating = false;
-    renderAll();
+
+    const solved = ALL_LINES.every(line => diagnoseLine(line) === '=');
+    if(solved){
+      runCelebration(gen);
+    } else {
+      cleared = false;
+      document.getElementById('clearOverlay').classList.add('hidden');
+      renderAll();
+    }
   });
 }
 
 function undoSwap(){
-  if(animating || history.length === 0) return Promise.resolve();
+  if(animating || celebrating || history.length === 0) return Promise.resolve();
   const snap = history.pop();
   const [a, b] = snap.swapPair;
   animating = true;
-  setLockButtons(true);
+  updateLockUI();
   const gen = ++opGeneration;
 
   const valueA = repairGridValue(repairState, a.L, a.r, a.c); // 現在(交換後)の値を戻すアニメーション
@@ -182,10 +188,47 @@ function undoSwap(){
     selectedCell = snap.selectedCell;
     highlightedLineKey = snap.highlightedLineKey;
     cleared = snap.cleared;
+    celebrating = false;
     document.getElementById('clearOverlay').classList.toggle('hidden', !cleared);
     animating = false;
     renderAll();
   });
+}
+
+// ---- クリア演出: 最後の交換確定後、盤面を一気に緑化するのではなく
+// 成立ライン数・未確定セルの見た目切替 -> 上段/中央/下段の順に穏やかな発光 -> オーバーレイ、
+// という短い連鎖(reduced-motion以外で約700〜900ms)を経てからクリア表示する。
+function runCelebration(gen){
+  celebrating = true;
+  updateLockUI();
+  renderAll(); // 成立ライン109/109・未確定8セルの「修復完了」見た目をここで反映する
+
+  const reduced = prefersReducedMotion();
+  const stagger = reduced ? 0 : 220;
+  const glowDuration = reduced ? 0 : 260;
+  const tailWait = reduced ? 0 : 150;
+  const groups = [ ['slot-5','slot-4'], ['slot-3'], ['slot-2','slot-1'] ];
+
+  groups.forEach((ids, i) => {
+    setTimeout(()=>{
+      if(gen !== opGeneration) return;
+      for(const id of ids){ const el = document.getElementById(id); if(el) el.classList.add('wave-glow'); }
+      setTimeout(()=>{
+        if(gen !== opGeneration) return;
+        for(const id of ids){ const el = document.getElementById(id); if(el) el.classList.remove('wave-glow'); }
+      }, glowDuration);
+    }, i*stagger);
+  });
+
+  const totalWait = stagger*(groups.length-1) + glowDuration + tailWait;
+  setTimeout(()=>{
+    if(gen !== opGeneration) return;
+    celebrating = false;
+    cleared = true;
+    document.getElementById('clearOverlay').classList.remove('hidden');
+    updateLockUI();
+    renderAll();
+  }, totalWait);
 }
 
 // ---- 交換アニメーション: 2枚の「タイル面」が互いの位置へ移動して見えるようにする ----
@@ -214,6 +257,8 @@ function makeTileGhost(faceEl, labelEl, value, rect){
   svg.style.height = rect.height + 'px';
 
   const face = faceEl.cloneNode(true);
+  // 移動中に下の盤面が透けないよう、複製した面だけ不透明度を引き上げる(元セルには触れない)。
+  face.setAttribute('fill-opacity', '0.96');
   svg.appendChild(face);
   const label = labelEl.cloneNode(true);
   label.textContent = value;
@@ -282,29 +327,23 @@ function animateSwap(a, b, valueA, valueB){
   }
 }
 
-// ---- ライン項目クリックで強調のトグル(側面ラベル・立体バッジ共通) ----
+// ---- ラインフォーカスのトグル(側面ラベル・ヒットボックス・立体バッジ共通) ----
 function toggleLineHighlight(lineKey){
   highlightedLineKey = (highlightedLineKey === lineKey) ? null : lineKey;
   renderAll();
 }
 
-// ---- クリア判定: 全109ラインが315かどうかだけで決める(セル単位の正解比較は使わない) ----
-function checkCompletion(){
-  const overlay = document.getElementById('clearOverlay');
-  const allOk = ALL_LINES.every(line => diagnoseLine(line) === '=');
-  cleared = allOk;
-  overlay.classList.toggle('hidden', !allOk);
-}
-
 function resetPuzzle(){
-  if(animating) return; // アニメーション中の交換/Undoを壊さない
-  opGeneration++;        // 万一残っている完了処理を無効化する安全弁
+  if(animating || celebrating) return; // 進行中の交換/演出を壊さない
+  opGeneration++;        // 残っている完了処理・演出タイマーを無効化する安全弁
   repairState = createInitialRepairState();
   selectedCell = null;
   highlightedLineKey = null;
   history = [];
   cleared = false;
+  celebrating = false;
   document.querySelectorAll('.swap-ghost').forEach(el => el.remove());
+  document.querySelectorAll('.level-slot.wave-glow').forEach(el => el.classList.remove('wave-glow'));
   document.getElementById('clearOverlay').classList.add('hidden');
   renderAll();
 }
@@ -322,12 +361,13 @@ function renderAll(){
   renderBoard(lineStatuses, cellHealth);
   renderFlatLineLabels(lineStatuses);
   renderCrossLevelBadges(lineStatuses);
-  setLockButtons(animating);
+  renderProgress(lineStatuses);
+  updateLockUI();
 }
 
 function renderBoard(lineStatuses, cellHealth){
   const highlightLine = highlightedLineKey ? ALL_LINES.find(l=>l.key===highlightedLineKey) : null;
-  const highlightClass = highlightLine ? `diag-${diagStatusClass(lineStatuses.get(highlightLine.key))}` : null;
+  const finalized = cleared || celebrating; // クリア(演出中含む)後は診断輪郭を消し、修復完了の見た目にする
 
   for(let L=1; L<=LEVELS; L++){
     for(let r=0;r<N;r++){
@@ -345,69 +385,91 @@ function renderBoard(lineStatuses, cellHealth){
         g.classList.remove('empty');
         g.classList.toggle('given', !unlocked);
         g.classList.toggle('repair-unlocked', unlocked);
+        g.classList.toggle('repair-completed', unlocked && finalized);
         g.classList.toggle('cell-selected', cellKeyEq(selectedCell, {L,r,c}));
 
-        g.classList.toggle('line-health-ok', cellHealth[key] === 'ok');
-        g.classList.toggle('line-health-bad', cellHealth[key] === 'bad');
+        g.classList.toggle('line-health-ok', !finalized && cellHealth[key] === 'ok');
+        g.classList.toggle('line-health-bad', !finalized && cellHealth[key] === 'bad');
 
-        g.classList.remove('diag-eq','diag-over','diag-under');
-        if(highlightLine && lineTouchesCell(highlightLine, L, r, c)){
-          g.classList.add(highlightClass);
+        g.classList.remove('line-focus-target','line-focus-dimmed');
+        if(highlightLine){
+          g.classList.add(lineTouchesCell(highlightLine, L, r, c) ? 'line-focus-target' : 'line-focus-dimmed');
         }
       }
     }
   }
 }
 
-// 行・列・層内対角線(60本): 既存のwall-label/edge-label要素へ＝/↑/↓の1文字だけを表示する。
-function renderFlatLineLabels(lineStatuses){
-  document.querySelectorAll('.row-wall-label').forEach(el=>{
-    const L = Number(el.dataset.l), r = Number(el.dataset.r);
-    applyFlatLabel(el, findRowLine(L, r), lineStatuses);
-  });
-  document.querySelectorAll('.col-wall-label').forEach(el=>{
-    const L = Number(el.dataset.l), c = Number(el.dataset.c);
-    applyFlatLabel(el, findColLine(L, c), lineStatuses);
-  });
-  document.querySelectorAll('.diag-sum-main').forEach(el=>{
-    const L = Number(el.dataset.l);
-    applyFlatLabel(el, findLayerDiagMain(L), lineStatuses);
-  });
-  document.querySelectorAll('.diag-sum-anti').forEach(el=>{
-    const L = Number(el.dataset.l);
-    applyFlatLabel(el, findLayerDiagAnti(L), lineStatuses);
-  });
+// 直接の子テキストノードだけを書き換える(<title>子要素をtextContent代入で巻き込んで消さない)。
+function setDirectText(el, text){
+  let node = null;
+  for(const child of el.childNodes){
+    if(child.nodeType === 3){ node = child; break; }
+  }
+  if(node) node.textContent = text;
+  else el.insertBefore(document.createTextNode(text), el.firstChild);
 }
 
-function applyFlatLabel(el, line, lineStatuses){
+// 行・列・層内対角線(60本): 315のラインは記号非表示・操作不能にし、不成立(↑/↓)だけ
+// 記号とヒットボックス(側面区画/対角線ハンドル)をクリック可能にする。
+function applyFlatLabel(el, hit, line, lineStatuses){
   if(!line) return;
   const status = lineStatuses.get(line.key);
+  el.classList.remove('stat-over','stat-under');
 
-  el.classList.remove('stat-eq','stat-over','stat-under');
+  if(status === '='){
+    setDirectText(el, '');
+    el.style.pointerEvents = 'none';
+    delete el.dataset.lineKey;
+    if(hit){ hit.style.pointerEvents = 'none'; delete hit.dataset.lineKey; }
+    const title = el.querySelector('title');
+    if(title) title.remove();
+    return;
+  }
+
   el.classList.add(`stat-${diagStatusClass(status)}`);
+  setDirectText(el, status);
+  el.style.pointerEvents = 'auto';
   el.dataset.lineKey = line.key;
+  if(hit){ hit.style.pointerEvents = 'auto'; hit.dataset.lineKey = line.key; }
 
   let title = el.querySelector('title');
   if(!title){
     title = document.createElementNS('http://www.w3.org/2000/svg','title');
     el.appendChild(title);
   }
-  const meaning = status === '=' ? '315(整合)' : status === '↑' ? '315超過' : '315未満';
+  const meaning = status === '↑' ? '315超過' : '315未満';
   title.textContent = `${lineLabel(line)}: ${meaning} — クリックで対象5マスを強調`;
-
-  // 表示文字(直接のテキストノード)だけを更新する。title要素はtextContent代入で
-  // 巻き込んで消してしまわないよう、既存のテキストノードだけを狙って書き換える。
-  let textNode = null;
-  for(const child of el.childNodes){
-    if(child.nodeType === 3){ textNode = child; break; }
-  }
-  if(textNode) textNode.textContent = status;
-  else el.insertBefore(document.createTextNode(status), el.firstChild);
 }
 
-// wall-label/edge-labelのクリックリスナーはDOM要素が使い回されるため一度だけ登録する。
+function renderFlatLineLabels(lineStatuses){
+  document.querySelectorAll('.row-wall-label').forEach(el=>{
+    const L = Number(el.dataset.l), r = Number(el.dataset.r);
+    const hit = document.querySelector(`.row-wall-hit[data-l="${L}"][data-r="${r}"]`);
+    applyFlatLabel(el, hit, findRowLine(L, r), lineStatuses);
+  });
+  document.querySelectorAll('.col-wall-label').forEach(el=>{
+    const L = Number(el.dataset.l), c = Number(el.dataset.c);
+    const hit = document.querySelector(`.col-wall-hit[data-l="${L}"][data-c="${c}"]`);
+    applyFlatLabel(el, hit, findColLine(L, c), lineStatuses);
+  });
+  document.querySelectorAll('.diag-sum-main').forEach(el=>{
+    const L = Number(el.dataset.l);
+    const hit = document.querySelector(`.diag-hit-main[data-l="${L}"]`);
+    applyFlatLabel(el, hit, findLayerDiagMain(L), lineStatuses);
+  });
+  document.querySelectorAll('.diag-sum-anti').forEach(el=>{
+    const L = Number(el.dataset.l);
+    const hit = document.querySelector(`.diag-hit-anti[data-l="${L}"]`);
+    applyFlatLabel(el, hit, findLayerDiagAnti(L), lineStatuses);
+  });
+}
+
+// wall-label/edge-label/ヒットボックスのクリックリスナーはDOM要素が使い回されるため
+// 一度だけ登録する。クリック時点のdataset.lineKeyを参照するので、後から状態が
+// 変わっても(315に戻って操作不能になっても)正しく追従する。
 function wireFlatLineLabels(){
-  const selectors = ['.row-wall-label','.col-wall-label','.diag-sum-main','.diag-sum-anti'];
+  const selectors = ['.row-wall-label','.col-wall-label','.diag-sum-main','.diag-sum-anti','.row-wall-hit','.col-wall-hit','.diag-hit'];
   document.querySelectorAll(selectors.join(',')).forEach(el=>{
     el.addEventListener('click', ()=>{
       const key = el.dataset.lineKey;
@@ -417,6 +479,8 @@ function wireFlatLineLabels(){
 }
 
 // 柱・縦断面対角線・空間対角線(49本): 選択セルを通るものだけを、セル付近のバッジで表示する。
+// 位置は推定サイズではなく、実際に生成したバッジのgetBoundingClientRect()で測って
+// board-areaの矩形内(上下左右8px以上の余白)へ収まるようclampする。
 function renderCrossLevelBadges(lineStatuses){
   const container = document.getElementById('crossLevelBadges');
   container.innerHTML = '';
@@ -439,8 +503,6 @@ function renderCrossLevelBadges(lineStatuses){
     container.style.display = 'none';
     return;
   }
-  const faceRect = face.getBoundingClientRect();
-  const boardRect = boardArea.getBoundingClientRect();
 
   container.style.display = 'flex';
   for(const line of lines){
@@ -455,17 +517,36 @@ function renderCrossLevelBadges(lineStatuses){
     container.appendChild(badge);
   }
 
-  const estWidth = 200, estHeight = lines.length * 27 + 12;
+  const faceRect = face.getBoundingClientRect();
+  const boardRect = boardArea.getBoundingClientRect();
+  const badgeRect = container.getBoundingClientRect(); // 実測サイズ(推定幅には依存しない)
+  const MARGIN = 8;
+  const w = badgeRect.width, h = badgeRect.height;
+
   let left = faceRect.right - boardRect.left + 10;
   let top = faceRect.top - boardRect.top;
-  if(faceRect.right + estWidth > window.innerWidth){
-    left = faceRect.left - boardRect.left - estWidth - 10;
+
+  if(left + w > boardRect.width - MARGIN){
+    left = faceRect.left - boardRect.left - w - 10; // 右に収まらないので左側へ
   }
-  if(faceRect.top + estHeight > window.innerHeight){
-    top = Math.max(0, faceRect.bottom - boardRect.top - estHeight);
+  left = Math.min(Math.max(left, MARGIN), Math.max(MARGIN, boardRect.width - MARGIN - w));
+
+  if(top + h > boardRect.height - MARGIN){
+    top = boardRect.height - MARGIN - h;
   }
+  top = Math.min(Math.max(top, MARGIN), Math.max(MARGIN, boardRect.height - MARGIN - h));
+
   container.style.left = left + 'px';
   container.style.top = top + 'px';
+}
+
+// サイドバーの成立ライン総数(ALL_LINESの独立集計。盤面/LEVEL表示へは出さない)。
+function renderProgress(lineStatuses){
+  const solved = ALL_LINES.reduce((acc, line) => acc + (lineStatuses.get(line.key) === '=' ? 1 : 0), 0);
+  const countEl = document.getElementById('solvedLineCount');
+  const container = document.getElementById('lineProgress');
+  if(countEl) countEl.textContent = solved;
+  if(container) container.classList.toggle('complete', solved === ALL_LINES.length);
 }
 
 // ---- キーボード操作 ----
