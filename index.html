@@ -45,9 +45,42 @@ button:disabled{opacity:0.35;cursor:default;}
 button:disabled:hover{background:transparent;border-color:var(--brass-dim);color:var(--bone);}
 
 .app{display:flex;height:100%;}
-.board-area{flex:1;position:relative;overflow:auto;display:flex;align-items:center;justify-content:center;}
-.cube-wrap-outer{position:relative;padding:24px;}
+.board-area{flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column;min-width:0;}
+.cube-wrap-outer{flex:1;position:relative;padding:16px 24px;overflow:auto;display:flex;align-items:center;justify-content:center;min-height:0;}
 #cubeWrap{position:relative;}
+
+/* ---- 盤面直上のHUD: 凡例 + 選択中セルのライン診断(常時自動計算、サイドバーとは重複させない) ---- */
+.board-hud{
+  flex-shrink:0;display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap;
+  padding:9px 20px;background:var(--panel);border-bottom:1px solid var(--line);
+  max-height:132px;overflow-y:auto;
+}
+.hud-legend{flex-shrink:0;min-width:200px;font-size:10.5px;color:var(--bone-dim);line-height:1.65;}
+.hud-legend-title{font-family:var(--serif);font-size:11.5px;color:var(--brass);margin-bottom:3px;}
+.hud-legend-item{display:flex;align-items:center;gap:6px;}
+.hud-swatch{width:10px;height:10px;border-radius:2px;flex-shrink:0;display:inline-block;}
+.hud-swatch.ok{background:var(--ok);}
+.hud-swatch.bad{background:var(--bad);}
+.hud-legend-note{color:var(--bone-dim);font-style:italic;margin-top:2px;}
+
+.hud-diag{flex:1;min-width:260px;}
+.hud-diag-title{font-family:var(--mono);font-size:11.5px;color:var(--bone);margin-bottom:5px;}
+.hud-diag-title .tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:6px;border:1px solid var(--brass-dim);color:var(--bone-dim);}
+.hud-diag-title .tag.unlocked{border-color:var(--warn);color:var(--warn);}
+.hud-lines{display:flex;flex-wrap:wrap;gap:6px;}
+.hud-chip{
+  font-family:var(--mono);font-size:11px;background:var(--panel-2);border:1px solid var(--brass-dim);
+  border-radius:4px;padding:4px 8px;cursor:pointer;display:flex;align-items:center;gap:6px;
+  transition:background .1s ease;color:var(--bone-dim);
+}
+.hud-chip:hover{border-color:var(--brass);}
+.hud-chip.active{background:var(--panel-2);outline:2px solid var(--brass);}
+.hud-chip .chip-label{color:var(--bone);}
+.hud-chip .chip-result{font-weight:700;}
+.hud-chip .chip-result.eq{color:var(--ok);}
+.hud-chip .chip-result.over{color:var(--bad);}
+.hud-chip .chip-result.under{color:#3b7fc4;}
+.hud-empty{font-size:11px;color:var(--bone-dim);font-style:italic;}
 
 .sidebar{
   width:340px;flex-shrink:0;height:100%;overflow-y:auto;
@@ -60,23 +93,6 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
 .caveat{font-size:10.5px;color:var(--bone-dim);background:var(--bg);border:1px solid var(--line);padding:8px 10px;border-radius:4px;line-height:1.7;}
 .controls-list{list-style:none;margin:0;padding:0;font-size:11px;color:var(--bone-dim);line-height:1.9;}
 .controls-list li::before{content:"・";color:var(--brass);margin-right:2px;}
-.cell-info{font-family:var(--mono);font-size:12px;color:var(--bone);line-height:1.8;}
-.cell-info .tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:6px;border:1px solid var(--brass-dim);color:var(--bone-dim);}
-.cell-info .tag.unlocked{border-color:var(--warn);color:var(--warn);}
-
-.line-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 4px;font-size:11.5px;color:var(--bone-dim);border-bottom:1px dashed var(--line);}
-.line-row:last-child{border-bottom:none;}
-.line-row .line-type{color:var(--bone);}
-.line-row .result{font-family:var(--mono);font-weight:700;font-size:14px;width:20px;text-align:center;}
-.line-row .result.eq{color:var(--ok);}
-.line-row .result.over{color:var(--bad);}
-.line-row .result.under{color:var(--warn);}
-.line-row-clickable{cursor:pointer;border-radius:3px;transition:background .1s ease;}
-.line-row-clickable:hover{background:var(--panel-2);}
-.line-row-clickable.active{background:var(--panel-2);outline:1px solid var(--brass-dim);}
-
-.lines-empty{font-size:11px;color:var(--bone-dim);font-style:italic;}
-
 .clear-overlay{
   position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;
   background:rgba(8,6,5,0.85);
@@ -97,39 +113,59 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
 .wall-label, .edge-label{display:none;} /* 常時表示の合計ラベルは修復モードでは非表示 */
 
 .iso-cell{cursor:pointer;}
-.iso-cell .cube-face{transition:filter .1s ease;}
+.iso-cell .cube-face{transition:filter .1s ease, fill .12s ease;}
 .iso-cell:hover .cube-face{filter:brightness(1.3);}
 .cube-label{font-family:var(--mono);font-weight:700;font-size:21px;pointer-events:none;fill:var(--bone);}
 
-/* locked(固定)セル: 白文字・カーソル通常 */
+/* locked(固定)セル: 白文字・カーソル通常。line-healthの背景色とは独立して維持する。 */
 .iso-cell.given{cursor:default;}
 .iso-cell.given .cube-label{fill:#ffffff;}
 
 /* unlocked(未確定)セル: 破線の縁取りで区別する。正誤は一切表さない。 */
-.iso-cell.repair-unlocked .cube-face{stroke:var(--brass) !important;stroke-width:1.8 !important;stroke-dasharray:4,3;}
+.iso-cell.repair-unlocked .cube-face{stroke:var(--brass);stroke-width:1.8;stroke-dasharray:4,3;}
 .iso-cell.repair-unlocked .cube-label{fill:var(--warn);}
 
-/* 選択中(観察対象 兼 交換元) */
-.iso-cell.cell-selected .cube-face{filter:brightness(1.45) saturate(1.3);stroke:#fff !important;stroke-width:2.4 !important;stroke-dasharray:none;}
+/* ---- ライン整合度による常時着色 (全125セル対象。正解セル比較は使わず、そのセルを通る
+   全ラインの合計が315かどうかだけで決める)。数字を読めるよう半透明で塗るだけに留める。 ---- */
+.iso-cell.line-health-ok .cube-face{fill:var(--ok);fill-opacity:0.34;}
+.iso-cell.line-health-bad .cube-face{fill:var(--bad);fill-opacity:0.34;}
 
-/* 強調中のライン(診断一覧のクリックで選択)のセルをハイライト。数字色は変えず、枠色だけで＝/↑/↓を示す。 */
-.iso-cell.diag-eq .cube-face{filter:brightness(1.4);stroke:var(--ok) !important;stroke-width:2.4 !important;}
-.iso-cell.diag-over .cube-face{filter:brightness(1.4);stroke:var(--bad) !important;stroke-width:2.4 !important;}
-.iso-cell.diag-under .cube-face{filter:brightness(1.4);stroke:#3b7fc4 !important;stroke-width:2.4 !important;}
+/* 強調中のライン(HUD診断チップのクリックで選択)。枠色だけで＝/↑/↓を示し、背景色より優先して見える。 */
+.iso-cell.diag-eq .cube-face{filter:brightness(1.4);stroke:var(--ok) !important;stroke-width:2.6 !important;}
+.iso-cell.diag-over .cube-face{filter:brightness(1.4);stroke:var(--bad) !important;stroke-width:2.6 !important;}
+.iso-cell.diag-under .cube-face{filter:brightness(1.4);stroke:#3b7fc4 !important;stroke-width:2.6 !important;}
 
-/* 交換直後の一時フィードバック(正常化=緑発光 / 異常化・反転=赤発光)。自動で消える。 */
-@keyframes flashPulse{
-  0%{filter:brightness(2.2);}
-  100%{filter:brightness(1);}
+/* 交換元の選択表示: 背景色・ライン強調とは別の明確な白枠。最優先で見える。 */
+.iso-cell.cell-selected .cube-face{filter:brightness(1.5) saturate(1.3);stroke:#fff !important;stroke-width:3 !important;stroke-dasharray:none;}
+
+/* ---- 交換アニメーション用の一時バッジ(実際のSVGラベルとは別のfixed要素) ---- */
+.swap-badge{
+  position:fixed;z-index:2000;pointer-events:none;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-weight:700;font-size:21px;color:var(--warn);
+  text-shadow:0 0 6px rgba(0,0,0,0.6);
 }
-.iso-cell.flash-ok .cube-face{stroke:var(--ok) !important;stroke-width:3 !important;animation:flashPulse 0.9s ease-out;}
-.iso-cell.flash-bad .cube-face{stroke:var(--bad) !important;stroke-width:3 !important;animation:flashPulse 0.9s ease-out;}
+@media (prefers-reduced-motion: reduce){
+  .swap-badge{transition:none !important;}
+}
 </style>
 </head>
 <body>
 
 <div class="app">
   <div class="board-area">
+    <div class="board-hud" id="boardHud">
+      <div class="hud-legend">
+        <div class="hud-legend-title">ライン整合度(常時表示)</div>
+        <div class="hud-legend-item"><span class="hud-swatch ok"></span>緑：このセルを通る全ラインが315</div>
+        <div class="hud-legend-item"><span class="hud-swatch bad"></span>赤：315でないラインを含む</div>
+        <div class="hud-legend-note">※数字単体の正誤表示ではありません。正しい固定セルでも、不成立のラインに含まれていれば赤くなります。</div>
+      </div>
+      <div class="hud-diag">
+        <div class="hud-diag-title" id="hudDiagTitle">マスをクリックすると、ここに所属ラインの状態(＝/↑/↓)が表示されます</div>
+        <div class="hud-lines" id="hudLineList"></div>
+      </div>
+    </div>
     <div class="cube-wrap-outer">
       <div class="cube-wrap" id="cubeWrap"></div>
     </div>
@@ -156,18 +192,9 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
       </ul>
       <div class="caveat" style="margin-top:10px;">
         枠が破線の8マスだけ未確定です。数字の色や見た目で正誤は分かりません。
-        マスを選ぶと、そのマスが属するラインのライン診断(＝/↑/↓)を自動表示します。
+        マスの背景色(緑/赤)は「そのマスを通るラインが全部315かどうか」を示すだけで、
+        マス単体の正誤ではありません。盤面上部のライン診断もあわせて確認してください。
       </div>
-    </div>
-
-    <div class="side-section">
-      <div class="side-h">選択中のマス</div>
-      <div id="selectedCellInfo" class="cell-info">盤面のマスをクリックしてください</div>
-    </div>
-
-    <div class="side-section">
-      <div class="side-h">ライン診断 — 選択中のマスが属するライン</div>
-      <div id="lineList"></div>
     </div>
   </aside>
 </div>

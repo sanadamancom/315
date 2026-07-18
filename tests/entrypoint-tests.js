@@ -26,6 +26,13 @@ console.log('== entrypoint (index.html) ==');
 
   const required = ['修復型パズル','固定セル117個','未確定セル8個','ライン診断','リセット','Undo'];
   check('index.htmlに必須表記が揃っている', required.every(s => html.includes(s)));
+
+  // 診断HUDはメイン盤面側(board-area内)にあり、サイドバー(<aside>)内には重複表示しない。
+  const asideMatch = html.match(/<aside[\s\S]*?<\/aside>/);
+  const asideHtml = asideMatch ? asideMatch[0] : '';
+  check('診断HUD(hudLineList)がメイン盤面側に存在する', /id="hudLineList"/.test(html) && !/id="hudLineList"/.test(asideHtml));
+  check('サイドバーに診断一覧(hudLineList/lineList)が重複していない', !/id="hudLineList"/.test(asideHtml) && !/id="lineList"/.test(asideHtml));
+  check('board-hudがboard-area内にある(sidebarより前に出現)', html.indexOf('id="boardHud"') < html.indexOf('<aside'));
 }
 
 console.log('== line labels (109本の表示名) ==');
