@@ -64,16 +64,18 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
 .cell-info .tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:6px;border:1px solid var(--brass-dim);color:var(--bone-dim);}
 .cell-info .tag.unlocked{border-color:var(--warn);color:var(--warn);}
 
-.line-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;font-size:11.5px;color:var(--bone-dim);border-bottom:1px dashed var(--line);}
+.line-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 4px;font-size:11.5px;color:var(--bone-dim);border-bottom:1px dashed var(--line);}
 .line-row:last-child{border-bottom:none;}
 .line-row .line-type{color:var(--bone);}
 .line-row .result{font-family:var(--mono);font-weight:700;font-size:14px;width:20px;text-align:center;}
 .line-row .result.eq{color:var(--ok);}
 .line-row .result.over{color:var(--bad);}
 .line-row .result.under{color:var(--warn);}
-.line-row button{padding:4px 8px;font-size:10.5px;}
+.line-row-clickable{cursor:pointer;border-radius:3px;transition:background .1s ease;}
+.line-row-clickable:hover{background:var(--panel-2);}
+.line-row-clickable.active{background:var(--panel-2);outline:1px solid var(--brass-dim);}
 
-.measured-empty, .lines-empty{font-size:11px;color:var(--bone-dim);font-style:italic;}
+.lines-empty{font-size:11px;color:var(--bone-dim);font-style:italic;}
 
 .clear-overlay{
   position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;
@@ -110,8 +112,18 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
 /* 選択中(観察対象 兼 交換元) */
 .iso-cell.cell-selected .cube-face{filter:brightness(1.45) saturate(1.3);stroke:#fff !important;stroke-width:2.4 !important;stroke-dasharray:none;}
 
-/* 測定中のライン(選択中の1本)のセルをハイライト。結果の正誤は示さない中立的な強調のみ。 */
-.iso-cell.line-highlight .cube-face{filter:brightness(1.5);stroke:var(--blood-bright) !important;stroke-width:2.2 !important;}
+/* 強調中のライン(診断一覧のクリックで選択)のセルをハイライト。数字色は変えず、枠色だけで＝/↑/↓を示す。 */
+.iso-cell.diag-eq .cube-face{filter:brightness(1.4);stroke:var(--ok) !important;stroke-width:2.4 !important;}
+.iso-cell.diag-over .cube-face{filter:brightness(1.4);stroke:var(--bad) !important;stroke-width:2.4 !important;}
+.iso-cell.diag-under .cube-face{filter:brightness(1.4);stroke:#3b7fc4 !important;stroke-width:2.4 !important;}
+
+/* 交換直後の一時フィードバック(正常化=緑発光 / 異常化・反転=赤発光)。自動で消える。 */
+@keyframes flashPulse{
+  0%{filter:brightness(2.2);}
+  100%{filter:brightness(1);}
+}
+.iso-cell.flash-ok .cube-face{stroke:var(--ok) !important;stroke-width:3 !important;animation:flashPulse 0.9s ease-out;}
+.iso-cell.flash-bad .cube-face{stroke:var(--bad) !important;stroke-width:3 !important;animation:flashPulse 0.9s ease-out;}
 </style>
 </head>
 <body>
@@ -135,15 +147,16 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
     <div class="side-section">
       <div class="side-h">操作方法</div>
       <ul class="controls-list">
-        <li>左クリック：マスを選択・測定</li>
-        <li>中クリック または Shift＋クリック：選択中のマスと交換</li>
+        <li>左クリック：マスを選択</li>
+        <li>未確定マスを2個クリック：数字を交換</li>
+        <li>ライン状態は自動診断されます</li>
+        <li>＝：315 / ↑：315超過 / ↓：315未満</li>
         <li>Ctrl＋Z：ひとつ戻す</li>
-        <li>Escape：選択解除</li>
         <li>正しい未確定マスと間違った未確定マスは同じ表示です</li>
       </ul>
       <div class="caveat" style="margin-top:10px;">
         枠が破線の8マスだけ未確定です。数字の色や見た目で正誤は分かりません。
-        マスを選ぶと、そのマスが属するラインを一覧表示し、測定機で＝(315ちょうど)/↑(超過)/↓(不足)だけを確認できます。
+        マスを選ぶと、そのマスが属するラインのライン診断(＝/↑/↓)を自動表示します。
       </div>
     </div>
 
@@ -153,13 +166,8 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
     </div>
 
     <div class="side-section">
-      <div class="side-h">測定機 — 選択中のマスが属するライン</div>
+      <div class="side-h">ライン診断 — 選択中のマスが属するライン</div>
       <div id="lineList"></div>
-    </div>
-
-    <div class="side-section">
-      <div class="side-h">測定履歴</div>
-      <div id="measuredList"></div>
     </div>
   </aside>
 </div>

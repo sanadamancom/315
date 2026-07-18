@@ -21,10 +21,10 @@ console.log('== entrypoint (index.html) ==');
   check('index.htmlが旧js\\/main.jsを読み込まない', !/js\/main\.js/.test(html));
   check('repair.htmlが削除されている', !fs.existsSync(path.join(root, 'repair.html')));
 
-  const forbidden = ['ふつう','むずかしい','とても難しい','難易度選択','新しい問題','候補プール','組み合わせ検索','お助け機能','ランダム問題生成'];
-  check('index.htmlに旧3難易度ボタン等が存在しない', forbidden.every(s => !html.includes(s)));
+  const forbidden = ['ふつう','むずかしい','とても難しい','難易度選択','新しい問題','候補プール','組み合わせ検索','お助け機能','ランダム問題生成','中クリック','Shift＋クリック','測定履歴','測定機'];
+  check('index.htmlに旧3難易度ボタン等・旧操作説明が存在しない', forbidden.every(s => !html.includes(s)));
 
-  const required = ['修復型パズル','固定セル117個','未確定セル8個','測定機','測定履歴','リセット','Undo'];
+  const required = ['修復型パズル','固定セル117個','未確定セル8個','ライン診断','リセット','Undo'];
   check('index.htmlに必須表記が揃っている', required.every(s => html.includes(s)));
 }
 

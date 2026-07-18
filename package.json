@@ -1,0 +1,12 @@
+{
+  "name": "fivefold-repair-prototype",
+  "private": true,
+  "version": "0.0.0",
+  "description": "修復型パズルプロトタイプのテスト用(アプリ本体はビルド不要の素のHTML/JS)",
+  "scripts": {
+    "test": "node tests/repair-tests.js && node tests/entrypoint-tests.js && node tests/interaction-tests.js"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.0"
+  }
+}
