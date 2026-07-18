@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>修復型パズル(試作) — 五階層方陣</title>
+<meta name="robots" content="noindex">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d0b0a;
+  --panel:#181310;
+  --panel-2:#1f1815;
+  --line:#3a2c24;
+  --brass:#b08d57;
+  --brass-dim:#7a6440;
+  --blood:#8a2331;
+  --blood-bright:#c23b4a;
+  --bone:#e9e0cf;
+  --bone-dim:#a89a84;
+  --ok:#5a8f6b;
+  --warn:#c9a227;
+  --bad:#b04a3f;
+  --mono:'Fira Code',monospace;
+  --serif:'Shippori Mincho',serif;
+  --sans:'Zen Kaku Gothic New',sans-serif;
+}
+*{box-sizing:border-box;}
+.cube-label{font-variant-numeric:slashed-zero;}
+html, body{height:100%;}
+body{
+  margin:0;
+  background:
+    radial-gradient(ellipse at 50% 0%, #1a1412 0%, var(--bg) 60%),
+    repeating-linear-gradient(45deg, rgba(176,141,87,0.012) 0px, rgba(176,141,87,0.012) 2px, transparent 2px, transparent 40px);
+  color:var(--bone);
+  font-family:var(--sans);
+  overflow:hidden;
+}
+button{font-family:var(--sans);font-size:12px;letter-spacing:0.02em;background:var(--panel-2);border:1px solid var(--brass-dim);color:var(--bone);padding:8px 12px;border-radius:3px;cursor:pointer;transition:all .12s ease;}
+button:hover{background:var(--blood);border-color:var(--blood-bright);color:#fff;}
+button.ghost{background:transparent;}
+button.full{width:100%;margin-top:6px;}
+button:disabled{opacity:0.35;cursor:default;}
+button:disabled:hover{background:transparent;border-color:var(--brass-dim);color:var(--bone);}
+
+.app{display:flex;height:100%;}
+.board-area{flex:1;position:relative;overflow:auto;display:flex;align-items:center;justify-content:center;}
+.cube-wrap-outer{position:relative;padding:24px;}
+#cubeWrap{position:relative;}
+
+.sidebar{
+  width:320px;flex-shrink:0;height:100%;overflow-y:auto;
+  background:var(--panel);border-left:1px solid var(--line);padding:18px 16px 40px;
+}
+.side-title{font-family:var(--serif);font-weight:800;font-size:19px;color:var(--bone);}
+.side-sub{font-family:var(--mono);font-size:10px;color:var(--bone-dim);letter-spacing:0.08em;margin-bottom:16px;}
+.side-section{margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line);}
+.side-h{font-family:var(--serif);font-size:12.5px;color:var(--brass);margin-bottom:8px;letter-spacing:0.03em;}
+.caveat{font-size:10.5px;color:var(--bone-dim);background:var(--bg);border:1px solid var(--line);padding:8px 10px;border-radius:4px;line-height:1.7;}
+.cell-info{font-family:var(--mono);font-size:12px;color:var(--bone);line-height:1.8;}
+.cell-info .tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:6px;border:1px solid var(--brass-dim);color:var(--bone-dim);}
+.cell-info .tag.unlocked{border-color:var(--warn);color:var(--warn);}
+
+.line-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;font-size:11.5px;color:var(--bone-dim);border-bottom:1px dashed var(--line);}
+.line-row:last-child{border-bottom:none;}
+.line-row .line-type{color:var(--bone);}
+.line-row .result{font-family:var(--mono);font-weight:700;font-size:14px;width:20px;text-align:center;}
+.line-row .result.eq{color:var(--ok);}
+.line-row .result.over{color:var(--bad);}
+.line-row .result.under{color:var(--warn);}
+.line-row button{padding:4px 8px;font-size:10.5px;}
+
+.measured-empty, .lines-empty{font-size:11px;color:var(--bone-dim);font-style:italic;}
+
+.clear-overlay{
+  position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;
+  background:rgba(8,6,5,0.85);
+}
+.clear-overlay.hidden{display:none;}
+.clear-box{
+  background:var(--panel);border:1px solid var(--brass);border-radius:8px;padding:32px 40px;text-align:center;
+  box-shadow:0 12px 40px rgba(0,0,0,0.6);
+}
+.clear-box h2{font-family:var(--serif);color:var(--brass);margin:0 0 8px;font-size:22px;}
+.clear-box p{color:var(--bone-dim);font-size:12.5px;margin:0 0 16px;}
+
+/* ---- board (render.jsのbuildCube/buildLevelCardが生成するDOMに対応するスタイル) ---- */
+.cube-wrap{}
+.level-slot{}
+.level-card{background:transparent;border:none;padding:0;width:max-content;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;position:relative;}
+.level-svg{display:block;max-width:100%;height:auto;overflow:visible;}
+.wall-label, .edge-label{display:none;} /* 常時表示の合計ラベルは修復モードでは非表示 */
+
+.iso-cell{cursor:pointer;}
+.iso-cell .cube-face{transition:filter .1s ease;}
+.iso-cell:hover .cube-face{filter:brightness(1.3);}
+.cube-label{font-family:var(--mono);font-weight:700;font-size:21px;pointer-events:none;fill:var(--bone);}
+
+/* locked(固定)セル: 白文字・カーソル通常 */
+.iso-cell.given{cursor:default;}
+.iso-cell.given .cube-label{fill:#ffffff;}
+
+/* unlocked(未確定)セル: 破線の縁取りで区別する。正誤は一切表さない。 */
+.iso-cell.repair-unlocked .cube-face{stroke:var(--brass) !important;stroke-width:1.8 !important;stroke-dasharray:4,3;}
+.iso-cell.repair-unlocked .cube-label{fill:var(--warn);}
+
+/* 交換用に選択中 */
+.iso-cell.cell-selected .cube-face{filter:brightness(1.45) saturate(1.3);stroke:#fff !important;stroke-width:2.4 !important;stroke-dasharray:none;}
+
+/* 測定中のライン(選択中の1本)のセルをハイライト。結果の正誤は示さない中立的な強調のみ。 */
+.iso-cell.line-highlight .cube-face{filter:brightness(1.5);stroke:var(--blood-bright) !important;stroke-width:2.2 !important;}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="board-area">
+    <div class="cube-wrap-outer">
+      <div class="cube-wrap" id="cubeWrap"></div>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="side-title">修復型パズル(試作)</div>
+    <div class="side-sub">REPAIR PROTOTYPE — 1問固定</div>
+
+    <div class="side-section">
+      <button id="resetBtn" class="ghost full">初期破損状態に戻す</button>
+      <button id="undoBtn" class="ghost full" disabled>↶ ひとつ戻す</button>
+      <div class="caveat" style="margin-top:10px;">
+        枠が破線の8マスだけ未確定です。未確定マス2個をクリックすると数字が交換されます。
+        マスを選ぶと、そのマスが属するラインを一覧表示し、「測定」で＝(315ちょうど)/↑(超過)/↓(不足)だけを確認できます。
+        マスの色や数字で正誤は分かりません。
+      </div>
+    </div>
+
+    <div class="side-section">
+      <div class="side-h">選択中のマス</div>
+      <div id="selectedCellInfo" class="cell-info">盤面のマスをクリックしてください</div>
+    </div>
+
+    <div class="side-section">
+      <div class="side-h">選択中のマスが属するライン</div>
+      <div id="lineList"></div>
+    </div>
+
+    <div class="side-section">
+      <div class="side-h">測定履歴</div>
+      <div id="measuredList"></div>
+    </div>
+  </aside>
+</div>
+
+<div id="clearOverlay" class="clear-overlay hidden">
+  <div class="clear-box">
+    <h2>修復完了</h2>
+    <p>109ラインすべてが315になりました。</p>
+    <button id="clearCloseBtn" class="ghost">閉じる</button>
+  </div>
+</div>
+
+<script src="js/generator.js"></script>
+<script src="js/render.js"></script>
+<script src="js/repair/cube-data.js"></script>
+<script src="js/repair/lines109.js"></script>
+<script src="js/repair/puzzle.js"></script>
+<script src="js/repair/measure.js"></script>
+<script src="js/repair/repair-main.js"></script>
+</body>
+</html>
