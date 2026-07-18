@@ -366,7 +366,7 @@ function buildLevelCard(L){
       const g = document.createElementNS(SVG_NS,'g');
       g.setAttribute('class', 'iso-cell empty');
       g.dataset.l = L; g.dataset.r = r; g.dataset.c = c;
-      g.addEventListener('click', ()=> onCellClick(L,r,c));
+      g.addEventListener('click', (e)=> onCellClick(L,r,c,e));
       g.addEventListener('contextmenu', (e)=>{ e.preventDefault(); onCellRightClick(L,r,c); });
 
       const poly = document.createElementNS(SVG_NS,'polygon');

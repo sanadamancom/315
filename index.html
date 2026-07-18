@@ -3,27 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>五階層方陣</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpolygon points='50,8 92,50 50,92 8,50' fill='%238a2131' stroke='%23e8c977' stroke-width='4'/%3E%3Cline x1='50' y1='8' x2='50' y2='92' stroke='%23e8c977' stroke-width='2' opacity='0.6'/%3E%3Cline x1='8' y1='50' x2='92' y2='50' stroke='%23e8c977' stroke-width='2' opacity='0.6'/%3E%3C/svg%3E">
-
-<meta name="description" content="1〜125の数字を5×5×5の立方体に配置し、すべての行・列・対角線・縦列の合計を315に揃える無料ブラウザパズル。">
-<meta property="og:type" content="website">
-<meta property="og:title" content="五階層方陣 — Fivefold Magic Cube">
-<meta property="og:description" content="1〜125の数字を5×5×5の立方体に配置し、すべての行・列・対角線・縦列の合計を315に揃えるブラウザパズル。毎回自動生成される無限のパズル、自動セーブ対応。">
-<meta property="og:url" content="https://fivefold.sanadaman.com/">
-<meta property="og:image" content="https://fivefold.sanadaman.com/ogp.png">
-<meta name="twitter:card" content="summary_large_image">
-
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-961NEHZG3C"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-961NEHZG3C');
-</script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<title>修復型パズル(試作) — 五階層方陣</title>
+<meta name="robots" content="noindex">
 <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -45,9 +26,7 @@
   --sans:'Zen Kaku Gothic New',sans-serif;
 }
 *{box-sizing:border-box;}
-.cube-label, .wall-label, .edge-label, .stack-label, .chip, input.target-input, .clear-time, .timer-badge{
-  font-variant-numeric: slashed-zero;
-}
+.cube-label{font-variant-numeric:slashed-zero;}
 html, body{height:100%;}
 body{
   margin:0;
@@ -56,718 +35,149 @@ body{
     repeating-linear-gradient(45deg, rgba(176,141,87,0.012) 0px, rgba(176,141,87,0.012) 2px, transparent 2px, transparent 40px);
   color:var(--bone);
   font-family:var(--sans);
-  overflow:hidden; /* Full-HD-and-up desktop layout: no page scrolling */
+  overflow:hidden;
 }
-
-.app{
-  height:100vh;
-  min-height:600px;
-}
-
-/* ---------------- sidebar: floating, draggable panel ---------------- */
-.sidebar{
-  position:fixed;top:24px;left:24px;z-index:16;
-  width:270px;
-  background:var(--panel);
-  border:1px solid var(--brass-dim);
-  border-radius:6px;
-  box-shadow:0 8px 24px rgba(0,0,0,0.55);
-  transition:width .18s ease;
-  max-height:calc(100vh - 48px);
-  display:flex;flex-direction:column;
-  user-select:none;
-}
-.sidebar-head{ border-radius:6px 6px 0 0; }
-.sidebar.collapsed{ width:210px; }
-.sidebar.collapsed .sidebar-content{ display:none; }
-.sidebar-head{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:6px 8px 6px 12px;border-bottom:1px solid var(--line);
-  cursor:grab;font-family:var(--serif);font-size:12px;color:var(--brass);letter-spacing:0.03em;
-  flex-shrink:0;
-}
-.sidebar-head:active{cursor:grabbing;}
-.sidebar-toggle{
-  width:24px; height:24px; border-radius:4px;
-  background:var(--panel-2); border:1px solid var(--brass-dim); color:var(--brass);
-  cursor:pointer; font-size:14px; line-height:1;flex-shrink:0;
-  display:flex; align-items:center; justify-content:center; padding:0;
-}
-.sidebar-toggle:hover{ background:var(--blood); color:#fff; border-color:var(--blood-bright); }
-.header-btn-group{display:flex;align-items:center;gap:6px;flex-shrink:0;}
-.pin-btn{
-  width:24px; height:24px; border-radius:4px;
-  background:var(--panel-2); border:1px solid var(--brass-dim); color:var(--bone-dim);
-  cursor:pointer; line-height:1;flex-shrink:0;opacity:0.5;
-  display:flex; align-items:center; justify-content:center; padding:0;
-}
-.pin-btn:hover{ border-color:var(--brass); opacity:0.85; }
-.pin-btn.active{ background:var(--blood); border-color:var(--blood-bright); color:#fff; opacity:1; }
-.front-btn{
-  width:24px; height:24px; border-radius:4px;
-  background:var(--panel-2); border:1px solid var(--brass-dim); color:var(--bone-dim);
-  cursor:pointer; line-height:1;flex-shrink:0;opacity:0.5;
-  display:flex; align-items:center; justify-content:center; padding:0;
-}
-.front-btn:hover{ border-color:var(--brass); opacity:0.85; }
-/* ヘッダ3ボタンのアイコンサイズを統一 */
-.sidebar-toggle svg, .pin-btn svg, .front-btn svg{
-  width:13px; height:13px; display:block; pointer-events:none;
-}
-.front-btn.active{ background:var(--brass); border-color:var(--brass); color:#1a130c; opacity:1; }
-.sidebar-content{
-  overflow-y:auto;
-  padding:16px;
-  user-select:text;
-}
-.side-title{font-family:var(--serif);font-weight:800;font-size:19px;color:var(--bone);}
-.side-sub{font-family:var(--mono);font-size:10px;letter-spacing:0.14em;color:var(--bone-dim);text-transform:uppercase;margin-bottom:8px;}
-.side-desc{font-size:11.5px;line-height:1.7;color:var(--bone-dim);margin:0 0 14px;}
-.side-section{border-top:1px solid var(--line);padding-top:12px;margin-top:12px;}
-.side-h{font-family:var(--serif);font-weight:700;font-size:12.5px;color:var(--brass);margin-bottom:8px;letter-spacing:0.05em;}
-
-.diff-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;}
-.diff-row-6{grid-template-columns:1fr 1fr;}
-
-/* accordion sections: click the heading to open/close */
-.side-section.acc .side-h{
-  cursor:pointer;user-select:none;
-  display:flex;align-items:center;justify-content:space-between;
-}
-.side-section.acc .side-h::after{content:'▾';font-size:10px;color:var(--brass-dim);}
-.side-section.acc.closed .side-h::after{content:'▸';}
-.side-section.acc.closed .acc-body{display:none;}
-.side-section.acc.closed .side-h{margin-bottom:2px;}
-.diff-btn{
-  font-family:var(--sans);font-size:11px;background:var(--panel-2);border:1px solid var(--brass-dim);
-  color:var(--bone-dim);padding:7px 4px;border-radius:3px;cursor:pointer;transition:all .12s ease;
-}
-.diff-btn:hover{border-color:var(--brass);color:var(--brass);}
-.diff-btn.active{background:var(--blood);border-color:var(--blood-bright);color:#fff;}
-
-.hint-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:10px;}
-.combo-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;}
-.undo-redo-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
-.undo-redo-row button{font-size:11px;padding:8px 4px;}
-.undo-redo-row button:disabled{opacity:0.35;cursor:not-allowed;}
-.undo-redo-row button:disabled:hover{background:var(--panel-2);border-color:var(--brass-dim);color:var(--bone);}
-select.target-input{width:100%;background:var(--bg);border:1px solid var(--brass-dim);color:var(--brass);font-family:var(--sans);font-size:11px;padding:4px 2px;border-radius:3px;}
-.combo-results{display:flex;flex-direction:column;gap:6px;margin-top:10px;max-height:180px;overflow-y:auto;}
-.combo-chip{
-  font-family:var(--mono);font-size:11px;background:var(--bg);border:1px solid var(--brass-dim);
-  color:var(--brass);padding:6px 8px;border-radius:3px;
-}
-.combo-empty{font-size:11px;color:var(--bone-dim);font-style:italic;}
-.field{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;color:var(--bone-dim);}
-input[type=number].target-input{
-  width:100%;background:var(--bg);border:1px solid var(--brass-dim);color:var(--brass);
-  font-family:var(--mono);font-size:12px;text-align:center;padding:4px 2px;border-radius:3px;
-}
-
 button{font-family:var(--sans);font-size:12px;letter-spacing:0.02em;background:var(--panel-2);border:1px solid var(--brass-dim);color:var(--bone);padding:8px 12px;border-radius:3px;cursor:pointer;transition:all .12s ease;}
 button:hover{background:var(--blood);border-color:var(--blood-bright);color:#fff;}
 button.ghost{background:transparent;}
-button.primary{background:linear-gradient(160deg,#7a1c28,#5a1520);border-color:var(--blood-bright);}
 button.full{width:100%;margin-top:6px;}
+button:disabled{opacity:0.35;cursor:default;}
+button:disabled:hover{background:transparent;border-color:var(--brass-dim);color:var(--bone);}
 
-.side-label{font-size:10.5px;color:var(--bone-dim);margin-bottom:5px;}
-.seg-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:4px;}
-.seg-row-4{grid-template-columns:repeat(4,1fr);}
-.seg-btn{
-  font-family:var(--sans);font-size:10.5px;background:var(--panel-2);border:1px solid var(--brass-dim);
-  color:var(--bone-dim);padding:6px 4px;border-radius:3px;cursor:pointer;transition:all .12s ease;
-}
-.seg-btn:hover{border-color:var(--brass);color:var(--brass);}
-.seg-btn.active{background:var(--ok-bg,#1c2b21);border-color:var(--ok);color:var(--ok);}
+.app{display:flex;height:100%;}
+.board-area{flex:1;position:relative;overflow:auto;display:flex;align-items:center;justify-content:center;}
+.cube-wrap-outer{position:relative;padding:24px;}
+#cubeWrap{position:relative;}
 
-.switch-item{display:flex;align-items:center;gap:9px;margin-top:9px;font-size:11.5px;color:var(--bone-dim);}
-.switch{position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0;}
-.switch input{opacity:0;width:0;height:0;position:absolute;}
-.switch-slider{position:absolute;inset:0;background:var(--line);border-radius:20px;cursor:pointer;transition:background .15s ease;}
-.switch-slider::before{content:"";position:absolute;height:14px;width:14px;left:3px;top:3px;background:var(--bone-dim);border-radius:50%;transition:transform .15s ease,background .15s ease;}
-.switch input:checked + .switch-slider{background:var(--ok);}
-.switch input:checked + .switch-slider::before{transform:translateX(16px);background:#fff;}
-.switch input:focus-visible + .switch-slider{outline:2px solid var(--brass);outline-offset:2px;}
-button:focus-visible{outline:2px solid var(--brass);outline-offset:1px;}
+.sidebar{
+  width:340px;flex-shrink:0;height:100%;overflow-y:auto;
+  background:var(--panel);border-left:1px solid var(--line);padding:18px 16px 40px;
+}
+.side-title{font-family:var(--serif);font-weight:800;font-size:19px;color:var(--bone);}
+.side-sub{font-family:var(--mono);font-size:10px;color:var(--bone-dim);letter-spacing:0.08em;margin-bottom:16px;}
+.side-section{margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line);}
+.side-h{font-family:var(--serif);font-size:12.5px;color:var(--brass);margin-bottom:8px;letter-spacing:0.03em;}
+.caveat{font-size:10.5px;color:var(--bone-dim);background:var(--bg);border:1px solid var(--line);padding:8px 10px;border-radius:4px;line-height:1.7;}
+.controls-list{list-style:none;margin:0;padding:0;font-size:11px;color:var(--bone-dim);line-height:1.9;}
+.controls-list li::before{content:"・";color:var(--brass);margin-right:2px;}
+.cell-info{font-family:var(--mono);font-size:12px;color:var(--bone);line-height:1.8;}
+.cell-info .tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:6px;border:1px solid var(--brass-dim);color:var(--bone-dim);}
+.cell-info .tag.unlocked{border-color:var(--warn);color:var(--warn);}
 
-.legend{display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--bone-dim);margin-bottom:10px;}
-.legend span{display:flex;align-items:center;gap:7px;}
-.legend i{width:10px;height:10px;border-radius:2px;display:inline-block;flex-shrink:0;}
-.caveat{font-size:10.5px;color:var(--bone-dim);background:var(--bg);border:1px solid var(--line);padding:8px 10px;border-radius:4px;line-height:1.6;}
+.line-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;font-size:11.5px;color:var(--bone-dim);border-bottom:1px dashed var(--line);}
+.line-row:last-child{border-bottom:none;}
+.line-row .line-type{color:var(--bone);}
+.line-row .result{font-family:var(--mono);font-weight:700;font-size:14px;width:20px;text-align:center;}
+.line-row .result.eq{color:var(--ok);}
+.line-row .result.over{color:var(--bad);}
+.line-row .result.under{color:var(--warn);}
+.line-row button{padding:4px 8px;font-size:10.5px;}
 
-/* ---------------- main area ---------------- */
-.main-area{
-  width:100%;
-  height:100%;
-  display:flex;
-  flex-direction:column;
-  overflow:hidden;
-}
-.board-area{
-  flex:1;
-  position:relative;
-  overflow:auto; /* safety net only; content is sized to avoid needing this on FHD+ */
-}
-.board-panel{
-  position:absolute;top:24px;left:310px;z-index:10;
-  user-select:none;
-  background:var(--panel);border:1px solid var(--brass-dim);border-radius:6px;
-  box-shadow:0 8px 24px rgba(0,0,0,0.4);
-  display:inline-block;
-}
-.board-drag-handle{
-  cursor:grab;padding:6px 8px 6px 14px;font-size:12px;color:var(--brass);
-  font-family:var(--serif);letter-spacing:0.03em;text-align:left;
-  border-bottom:1px solid var(--line);
-  display:flex;align-items:center;justify-content:space-between;gap:8px;
-}
-.board-drag-handle:active{cursor:grabbing;}
-.board-panel.collapsed{width:210px;}
-.board-panel.collapsed .board-drag-handle{border-bottom:none;}
-.board-panel.collapsed .cube-wrap-outer{display:none;}
-.cube-wrap-outer{position:relative;padding:0;overflow:hidden;box-sizing:content-box;}
-#cubeWrap{position:absolute !important;top:14px;left:14px;transform-origin:top left;}
+.measured-empty, .lines-empty{font-size:11px;color:var(--bone-dim);font-style:italic;}
 
-/* ---------------- candidate pool: floating, draggable, full-size window ---------------- */
-.pool-card{
-  position:fixed;left:310px;bottom:24px;z-index:14;
-  width:420px;max-width:calc(100vw - 48px);
-  background:var(--panel);border:1px solid var(--brass-dim);border-radius:6px;padding:0;
-  box-sizing:border-box;display:flex;flex-direction:column;
-  box-shadow:0 8px 24px rgba(0,0,0,0.55);user-select:none;
-  transition:width .18s ease;
+.clear-overlay{
+  position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;
+  background:rgba(8,6,5,0.85);
 }
-.pool-head{
-  font-family:var(--serif);font-weight:700;font-size:12px;color:var(--brass);flex-shrink:0;
-  cursor:grab;padding:6px 8px 6px 12px;border-bottom:1px solid var(--line);letter-spacing:0.03em;
-  display:flex;align-items:center;justify-content:space-between;gap:8px;
+.clear-overlay.hidden{display:none;}
+.clear-box{
+  background:var(--panel);border:1px solid var(--brass);border-radius:8px;padding:32px 40px;text-align:center;
+  box-shadow:0 12px 40px rgba(0,0,0,0.6);
 }
-.pool-head:active{cursor:grabbing;}
-.pool-card.collapsed{width:210px;}
-.pool-card.collapsed .pool-head{border-bottom:none;}
-.pool-card.collapsed .global-pool{display:none;}
-.global-pool{
-  display:grid;grid-template-columns:repeat(auto-fill, minmax(46px, 1fr));
-  gap:5px;padding:10px 12px;
-}
-.chip{
-  font-family:var(--mono);font-size:11px;background:var(--bg);border:1px solid var(--brass-dim);
-  color:var(--brass);padding:5px 2px;border-radius:3px;cursor:pointer;transition:all .1s ease;
-  text-align:center;
-}
-.chip:hover{background:var(--blood);border-color:var(--blood-bright);color:#fff;}
-.chip.selected{background:var(--blood-bright);border-color:#fff;color:#fff;}
-.chip.used{background:transparent;border-color:var(--line);color:var(--bone-dim);opacity:0.4;}
-.chip.used:hover{background:var(--panel);border-color:var(--bone-dim);color:var(--bone);opacity:0.8;}
+.clear-box h2{font-family:var(--serif);color:var(--brass);margin:0 0 8px;font-size:22px;}
+.clear-box p{color:var(--bone-dim);font-size:12.5px;margin:0 0 16px;}
 
-/* ---------------- cube layout: 5 boards in an X, positioned precisely via JS (render.js) ---------------- */
-.cube-wrap{
-  /* width/height/position are set inline by buildCube() to match the exact board pixel size */
-}
+/* ---- board (render.jsのbuildCube/buildLevelCardが生成するDOMに対応するスタイル) ---- */
+.cube-wrap{}
 .level-slot{}
+.level-card{background:transparent;border:none;padding:0;width:max-content;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;position:relative;}
+.level-svg{display:block;max-width:100%;height:auto;overflow:visible;}
+.wall-label, .edge-label{display:none;} /* 常時表示の合計ラベルは修復モードでは非表示 */
 
-.level-card{
-  background:transparent;border:none;padding:0;
-  width:max-content;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;
-  position:relative;
-}
-.level-svg{display:block;max-width:100%;height:auto;overflow:visible;pointer-events:none;}
-
-.stack3d-svg{display:block;pointer-events:none;}
-
-/* ---------------- always-on full-size stack preview (draggable) ---------------- */
-.mini-stack{
-  position:fixed;top:24px;right:24px;z-index:15;
-  background:var(--panel);border:1px solid var(--brass-dim);border-radius:6px;
-  box-shadow:0 8px 24px rgba(0,0,0,0.55);user-select:none;
-  transition:width .18s ease;
-}
-.mini-stack-head{
-  cursor:grab;padding:6px 8px 6px 10px;font-size:12px;color:var(--brass);
-  border-bottom:1px solid var(--line);font-family:var(--serif);letter-spacing:0.03em;
-  display:flex;align-items:center;justify-content:space-between;gap:8px;
-}
-.mini-stack-head:active{cursor:grabbing;}
-.mini-stack.collapsed{width:210px;}
-.mini-stack.collapsed .mini-stack-head{border-bottom:none;}
-.mini-stack.collapsed .mini-stack-body{display:none;}
-.mini-stack-body{padding:8px;}
-.mini-stack-body svg{display:block;}
-
-/* ---------------- combination search: standalone floating window ---------------- */
-.combo-panel{
-  position:fixed;top:420px;right:24px;z-index:15;width:280px;
-  background:var(--panel);border:1px solid var(--brass-dim);border-radius:6px;
-  box-shadow:0 8px 24px rgba(0,0,0,0.55);user-select:none;
-  transition:width .18s ease;
-}
-.combo-head{
-  cursor:grab;padding:6px 8px 6px 10px;font-size:12px;color:var(--brass);
-  border-bottom:1px solid var(--line);font-family:var(--serif);letter-spacing:0.03em;
-  display:flex;align-items:center;justify-content:space-between;gap:8px;
-}
-.combo-head:active{cursor:grabbing;}
-.combo-panel.collapsed{width:210px;}
-.combo-panel.collapsed .combo-head{border-bottom:none;}
-.combo-panel.collapsed .combo-body{display:none;}
-.combo-body{padding:12px;}
-
-.iso-cell{cursor:pointer;pointer-events:none;}
-.iso-cell .cube-face{transition:filter .1s ease;pointer-events:auto;}
+.iso-cell{cursor:pointer;}
+.iso-cell .cube-face{transition:filter .1s ease;}
 .iso-cell:hover .cube-face{filter:brightness(1.3);}
 .cube-label{font-family:var(--mono);font-weight:700;font-size:21px;pointer-events:none;fill:var(--bone);}
-.iso-cell.empty .cube-label{fill:rgba(233,224,207,0.35);font-weight:400;}
-.iso-cell.placeable .cube-face{
-  filter:brightness(1.45) saturate(1.3);
-  stroke:var(--blood-bright) !important;stroke-width:1.8 !important; /* 選択チップの赤と対応 */
-}
-.iso-cell.cell-selected .cube-face{filter:brightness(1.45) saturate(1.3);stroke:#fff !important;stroke-width:2 !important;}
-.iso-cell.typing .cube-label{fill:#ffd76a !important;font-weight:700;opacity:1;}
-.iso-cell.echo .cube-face{filter:brightness(1.5);stroke:var(--blood-bright);stroke-width:2;}
+
+/* locked(固定)セル: 白文字・カーソル通常 */
 .iso-cell.given{cursor:default;}
 .iso-cell.given .cube-label{fill:#ffffff;}
-.iso-cell.ok .cube-label, .iso-cell.warn .cube-label, .iso-cell.bad .cube-label{
-  fill:#3ee8ff;text-shadow:0 0 6px rgba(62,232,255,0.8);
-}
-/* a placed number that sits on at least one over/under-target completed line turns red,
-   so conflicts are visible on the board itself (not only via edge labels). */
-.iso-cell.bad .cube-label{
-  fill:#ff8a7a;text-shadow:0 0 6px rgba(255,110,90,0.85);
-}
-.iso-cell.tentative .cube-face{
-  stroke:#ffb347 !important;stroke-width:2 !important;stroke-dasharray:5,4;
-}
-.iso-cell.tentative .cube-label{
-  fill:#ffb347 !important;text-shadow:0 0 6px rgba(255,179,71,0.8) !important;font-style:italic;
-}
 
-.edge-label{font-family:var(--mono);font-weight:700;font-size:16px;pointer-events:none;fill:var(--brass);}
-.edge-label.ok{fill:var(--ok);}
-.edge-label.warn{fill:var(--warn);}
-.edge-label.bad{fill:var(--bad);}
-.wall-label{font-family:var(--mono);font-weight:700;font-size:15px;pointer-events:none;fill:rgba(255,255,255,0.75);}
-.wall-label.ok{fill:#bdf5cc;}
-.wall-label.warn{fill:#ffe6a0;}
-.wall-label.bad{fill:#ffb3ab;}
-.tier-label{font-family:var(--serif);font-weight:700;font-size:30px;font-style:italic;fill:rgba(255,255,255,0.85);pointer-events:none;letter-spacing:0.03em;}
-.stack-label{font-family:var(--mono);font-weight:700;font-size:15px;pointer-events:none;fill:var(--bone);}
-.stack-label.ok{fill:var(--ok);}
-.stack-label.warn{fill:var(--warn);}
-.stack-label.bad{fill:var(--bad);}
-.stack-cell.clickable{cursor:pointer;pointer-events:none;}
-.stack-cell.clickable .cube-face{pointer-events:auto;}
-.stack-cell.clickable:hover .cube-face{filter:brightness(1.25);}
-.stack-cell.echo .cube-face{filter:brightness(1.5);stroke:var(--blood-bright) !important;stroke-width:2.5 !important;}
-.stack-wall.echo{filter:brightness(1.5) !important;stroke:var(--blood-bright) !important;stroke-width:2.5 !important;}
+/* unlocked(未確定)セル: 破線の縁取りで区別する。正誤は一切表さない。 */
+.iso-cell.repair-unlocked .cube-face{stroke:var(--brass) !important;stroke-width:1.8 !important;stroke-dasharray:4,3;}
+.iso-cell.repair-unlocked .cube-label{fill:var(--warn);}
 
-/* ---------------- clear celebration ---------------- */
-.clear-overlay{
-  position:fixed;inset:0;z-index:500;
-  background:rgba(0,0,0,0);
-  display:flex;align-items:center;justify-content:center;
-  opacity:0;pointer-events:none;
-  transition:opacity .25s ease, background .25s ease;
-  overflow:hidden;
-}
-.clear-overlay.show{
-  opacity:1;pointer-events:auto;
-  background:rgba(0,0,0,0.68);
-}
-.clear-card{
-  position:relative;z-index:2;
-  background:var(--panel);border:1px solid var(--brass);border-radius:10px;
-  padding:36px 54px;text-align:center;
-  box-shadow:0 0 60px rgba(232,201,119,0.35), 0 12px 40px rgba(0,0,0,0.6);
-  transform:scale(0.82);opacity:0;
-  transition:transform .35s cubic-bezier(.34,1.56,.64,1), opacity .3s ease;
-}
-.clear-overlay.show .clear-card{transform:scale(1);opacity:1;}
-.clear-title{
-  font-family:var(--serif);font-weight:800;font-size:52px;letter-spacing:0.1em;
-  color:var(--gold, #e8c977);
-  text-shadow:0 0 24px rgba(232,201,119,0.7);
-  margin-bottom:10px;
-}
-.clear-sub{font-size:13px;color:var(--bone-dim);margin-bottom:6px;}
-.clear-diff{font-family:var(--mono);font-size:12px;color:var(--brass);margin-bottom:6px;}
-.clear-time{font-family:var(--mono);font-size:20px;color:var(--ok);margin-bottom:18px;}
-.clear-close{margin-top:8px;}
+/* 選択中(観察対象 兼 交換元) */
+.iso-cell.cell-selected .cube-face{filter:brightness(1.45) saturate(1.3);stroke:#fff !important;stroke-width:2.4 !important;stroke-dasharray:none;}
 
-.confetti-piece{
-  position:fixed;top:-20px;width:9px;height:14px;z-index:1;
-  animation-name:confetti-fall;animation-timing-function:ease-in;animation-fill-mode:forwards;
-  opacity:0.9;
-}
-@keyframes confetti-fall{
-  0%{ transform:translateY(-20px) rotate(0deg); opacity:1; }
-  100%{ transform:translateY(105vh) rotate(540deg); opacity:0.4; }
-}
-
-/* ---------------- generic modal (tutorial) ---------------- */
-.modal-overlay{
-  position:fixed;inset:0;background:rgba(0,0,0,0.72);
-  display:flex;align-items:center;justify-content:center;z-index:60;
-}
-.modal-box{
-  background:var(--panel);border:1px solid var(--brass-dim);border-radius:6px;
-  padding:22px 26px 26px;position:relative;max-width:640px;max-height:88vh;overflow-y:auto;
-}
-.modal-close{
-  position:absolute;top:8px;right:10px;background:transparent;border:none;color:var(--bone-dim);
-  font-size:20px;line-height:1;cursor:pointer;padding:4px 8px;
-}
-.modal-close:hover{color:#fff;background:var(--blood);border-radius:3px;}
-.modal-box .stack-head{font-family:var(--serif);font-weight:700;font-size:17px;margin-bottom:12px;text-align:center;color:var(--brass);}
-.tut-text{font-size:12.5px;line-height:1.8;color:var(--bone-dim);margin:0 0 14px;}
-.tut-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:14px;}
-.tut-item{display:flex;flex-direction:column;align-items:center;gap:6px;}
-.tut-caption{font-size:11.5px;color:var(--brass);text-align:center;}
-.tut-diagram{display:grid;grid-template-columns:repeat(5,18px);grid-template-rows:repeat(5,18px);gap:2px;}
-.tut-cell{width:18px;height:18px;background:var(--panel-2);border:1px solid var(--line);border-radius:2px;}
-.tut-cell.hl{background:var(--blood);border-color:var(--blood-bright);}
-
-/* ---------------- toast notifications ---------------- */
-.timer-badge{
-  position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:450;
-  background:var(--panel);border:1px solid var(--brass-dim);border-radius:20px;
-  padding:6px 18px;font-family:var(--mono);font-size:13px;color:var(--brass);
-  box-shadow:0 4px 14px rgba(0,0,0,0.45);
-}
-.zoom-control{
-  position:fixed;bottom:10px;left:50%;transform:translateX(-50%);z-index:450;
-  display:flex;align-items:center;gap:10px;
-  background:var(--panel);border:1px solid var(--brass-dim);border-radius:20px;
-  padding:7px 18px;box-shadow:0 4px 14px rgba(0,0,0,0.45);
-}
-.zoom-label{font-size:11px;color:var(--bone-dim);white-space:nowrap;}
-.zoom-value{font-family:var(--mono);font-size:12px;color:var(--brass);width:42px;text-align:right;}
-#zoomSlider{width:160px;accent-color:var(--blood-bright);cursor:pointer;}
-.toast-container{
-  position:fixed;bottom:24px;right:24px;z-index:490;
-  display:flex;flex-direction:column;gap:8px;align-items:flex-end;
-  pointer-events:none;
-}
-.toast{
-  font-family:var(--serif);font-weight:700;font-size:12.5px;
-  padding:10px 16px;border-radius:5px;border:1px solid var(--line);
-  background:var(--panel);color:var(--bone-dim);
-  box-shadow:0 6px 18px rgba(0,0,0,0.5);
-  opacity:0;transform:translateY(8px);
-  transition:opacity .2s ease, transform .2s ease;
-  max-width:320px;
-}
-.toast.show{opacity:1;transform:translateY(0);}
-.toast.fail{border-color:var(--bad);color:var(--bad);background:#20140f;}
-.toast.info{border-color:var(--brass-dim);color:var(--brass);}
-
-.clear-best{font-family:var(--mono);font-size:12px;color:var(--bone-dim);margin-bottom:14px;}
-.clear-best.new{color:var(--warn);}
-
-#layoutResetBtn{font-size:10.5px;padding:5px 10px;white-space:nowrap;}
-
-.ng-badge{
-  position:fixed;top:42px;left:50%;transform:translateX(-50%);z-index:450;
-  background:#241305;border:1px solid var(--warn);color:var(--warn);
-  font-size:10.5px;font-family:var(--mono);padding:3px 10px;border-radius:4px;
-  letter-spacing:0.05em;cursor:help;
-}
-
-/* ---------------- puzzle-generation loading overlay ---------------- */
-.gen-loading{
-  position:fixed;inset:0;z-index:850;background:rgba(0,0,0,0.55);
-  display:flex;align-items:center;justify-content:center;
-}
-.gen-loading-box{
-  background:var(--panel);border:1px solid var(--brass-dim);border-radius:8px;
-  padding:22px 30px;display:flex;flex-direction:column;align-items:center;gap:14px;
-}
-.gen-spinner{
-  width:34px;height:34px;border-radius:50%;
-  border:3px solid var(--brass-dim);border-top-color:var(--brass);
-  animation:genspin 0.8s linear infinite;
-}
-@keyframes genspin{to{transform:rotate(360deg);}}
-#genLoadingText{font-size:12px;color:var(--bone-dim);font-family:var(--mono);}
-
-/* ---------------- 空間対角線 (全体スタック内の可視化と読み出し) ---------------- */
-.triag-line{stroke:var(--brass);stroke-width:1.6;stroke-dasharray:5 4;opacity:0.28;pointer-events:none;}
-/* 対角線バッジ (スタックの角の外側、縦列ラベルの対角線版) */
-.triag-badge{cursor:pointer;pointer-events:none;}
-.triag-badge-bg{fill:rgba(0,0,0,0);stroke:none;stroke-width:2;pointer-events:auto;}
-.triag-badge-text{fill:var(--bone-dim);font-family:var(--mono);font-size:11px;font-weight:700;pointer-events:none;}
-.triag-badge.ok .triag-badge-text{fill:var(--ok);}
-.triag-badge.bad .triag-badge-text{fill:var(--bad);}
-.triag-badge:hover .triag-badge-bg{fill:rgba(212,160,60,0.28);stroke:var(--brass);stroke-width:1.5;}
-.triag-badge:hover .triag-badge-text{fill:var(--brass);}
-.triag-badge.sel .triag-badge-bg{stroke:#ffd76a;}
-.triag-badge.sel .triag-badge-text{fill:#ffd76a;}
-.triag-line.sel{opacity:1;stroke:#ffd76a;stroke-width:2.6;stroke-dasharray:none;}
-
-/* 対角線選択時のハイライト (縦列echoの金色版) */
-.iso-cell.techo .cube-face{filter:brightness(1.5);stroke:#ffd76a;stroke-width:2;}
-.iso-cell.locate-flash .cube-face{animation:locateFlash 0.9s ease-out;}
-@keyframes locateFlash{
-  0%{filter:brightness(2.2);stroke:#ffd76a;stroke-width:3;}
-  100%{filter:brightness(1);}
-}
-.stack-cell.techo .cube-face{filter:brightness(1.6);stroke:#ffd76a !important;stroke-width:2.5 !important;}
-.stack-wall.techo{filter:brightness(1.6) !important;stroke:#ffd76a !important;stroke-width:2.5 !important;}
-
-/* 幅が狭い画面では中央下のズームバーが候補プール(left:310〜730)を覆うため右下へ退避。
-   トーストは押し出されないよう少し持ち上げる */
-@media (max-width: 1520px){
-  .zoom-control{left:auto;right:24px;transform:none;bottom:10px;}
-  .toast-container{bottom:64px;}
-}
-
-/* let panel drags work on touch devices (pointer events need this to beat scrolling) */
-.sidebar-head, .pool-head, .mini-stack-head, .combo-head, .board-drag-handle{touch-action:none;}
-
-/* ---------------- "PC recommended" notice for small/touch screens ---------------- */
-.mobile-notice{display:none;}
-@media (max-width: 900px){
-  .mobile-notice{
-    display:flex;position:fixed;inset:0;z-index:900;
-    background:rgba(0,0,0,0.85);
-    align-items:center;justify-content:center;padding:20px;
-  }
-}
-.mobile-notice.dismissed{display:none !important;}
-.mobile-notice-box{
-  background:var(--panel);border:1px solid var(--brass-dim);border-radius:8px;
-  padding:24px 22px;max-width:340px;text-align:center;
-}
-.mobile-notice-title{font-family:var(--serif);font-weight:800;font-size:17px;color:var(--brass);margin-bottom:10px;}
-.mobile-notice-box p{font-size:12px;line-height:1.8;color:var(--bone-dim);margin:0 0 16px;}
-
+/* 測定中のライン(選択中の1本)のセルをハイライト。結果の正誤は示さない中立的な強調のみ。 */
+.iso-cell.line-highlight .cube-face{filter:brightness(1.5);stroke:var(--blood-bright) !important;stroke-width:2.2 !important;}
 </style>
 </head>
 <body>
 
-<div id="timerBadge" class="timer-badge">0:00</div>
-
 <div class="app">
-
-  <aside id="sidebar" class="sidebar">
-    <div class="sidebar-head" id="sidebarHead">
-      <span>⋮⋮ メニュー</span>
-      <div class="header-btn-group">
-            <button class="front-btn" data-front-target="sidebar" title="最前面に固定(他のウィンドウの下に隠れなくなる)"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="2" width="8.5" height="8.5" rx="1.2" fill="currentColor"/><rect x="2" y="5.5" width="8.5" height="8.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
-            <button class="pin-btn" data-pin-target="sidebar" title="ピン留め(位置固定)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.2 1.6 L14.4 6.8 L11.2 7.6 L8.6 10.2 L5.8 7.4 L8.4 4.8 Z" fill="currentColor"/><path d="M6.4 9.6 L2.2 13.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
-            <button id="sidebarToggle" class="sidebar-toggle" title="メニューの開閉"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="6.9" width="10" height="2.2" rx="1.1" fill="currentColor"/></svg></button>
-          </div>
+  <div class="board-area">
+    <div class="cube-wrap-outer">
+      <div class="cube-wrap" id="cubeWrap"></div>
     </div>
-    <div class="sidebar-content">
+  </div>
 
-      <div class="side-title">五階層方陣</div>
-      <div class="side-sub">FIVEFOLD MAGIC CUBE</div>
+  <aside class="sidebar">
+    <div class="side-title">修復型パズル(試作)</div>
+    <div class="side-sub">REPAIR PROTOTYPE — 固定セル117個・未確定セル8個</div>
 
-      <div class="side-section acc">
-        <div class="side-h">新しい問題</div>
-        <div class="acc-body">
-          <div class="diff-row diff-row-6">
-            <button class="diff-btn active" data-diff="normal">ふつう</button>
-            <button class="diff-btn" data-diff="hard">むずかしい</button>
-            <button class="diff-btn" data-diff="oni">とても難しい</button>
-          </div>
-          <div class="hint-grid">
-            <div class="field">L1<input type="number" id="hint-1" class="target-input" value="13" min="6" max="25" readonly></div>
-            <div class="field">L2<input type="number" id="hint-2" class="target-input" value="13" min="6" max="25" readonly></div>
-            <div class="field">L3<input type="number" id="hint-3" class="target-input" value="13" min="6" max="25" readonly></div>
-            <div class="field">L4<input type="number" id="hint-4" class="target-input" value="13" min="6" max="25" readonly></div>
-            <div class="field">L5<input type="number" id="hint-5" class="target-input" value="13" min="6" max="25" readonly></div>
-          </div>
-          <button id="newPuzzleBtn" class="primary full">新しい問題</button>
-          <button id="resetBtn" class="ghost full">やり直す</button>
-        </div>
+    <div class="side-section">
+      <button id="resetBtn" class="ghost full">リセット(初期破損状態に戻す)</button>
+      <button id="undoBtn" class="ghost full" disabled>Undo(ひとつ戻す)</button>
+    </div>
+
+    <div class="side-section">
+      <div class="side-h">操作方法</div>
+      <ul class="controls-list">
+        <li>左クリック：マスを選択・測定</li>
+        <li>中クリック または Shift＋クリック：選択中のマスと交換</li>
+        <li>Ctrl＋Z：ひとつ戻す</li>
+        <li>Escape：選択解除</li>
+        <li>正しい未確定マスと間違った未確定マスは同じ表示です</li>
+      </ul>
+      <div class="caveat" style="margin-top:10px;">
+        枠が破線の8マスだけ未確定です。数字の色や見た目で正誤は分かりません。
+        マスを選ぶと、そのマスが属するラインを一覧表示し、測定機で＝(315ちょうど)/↑(超過)/↓(不足)だけを確認できます。
       </div>
+    </div>
 
-      <div class="side-section acc">
-        <div class="side-h">サポート</div>
-        <div class="acc-body">
-          <div class="undo-redo-row">
-            <button id="undoBtn" class="ghost" disabled>↶ 戻す</button>
-            <button id="redoBtn" class="ghost" disabled>↷ 進む</button>
-          </div>
-          <button id="tutorialBtn" class="ghost full">遊び方を見る</button>
-          <button id="assistBtn" class="ghost full">お助け(確定マスを自動入力)</button>
-          <button id="surrenderBtn" class="ghost full">降参(全マス自動回答)</button>
-        </div>
-      </div>
+    <div class="side-section">
+      <div class="side-h">選択中のマス</div>
+      <div id="selectedCellInfo" class="cell-info">盤面のマスをクリックしてください</div>
+    </div>
 
-      <div class="side-section acc closed">
-        <div class="side-h">表示設定</div>
-        <div class="acc-body">
-          <div class="seg-row seg-row-4">
-            <button class="seg-btn active" data-labelmode="sum" title="各直線の現在の合計値を表示">合計値</button>
-            <button class="seg-btn" data-labelmode="remaining" title="315までの残り数値を表示">残り</button>
-            <button class="seg-btn" data-labelmode="fillcount" title="埋まっているマス数(x/5)を表示">埋まり数</button>
-            <button class="seg-btn" data-labelmode="off" title="ラベルを表示しない">非表示</button>
-          </div>
-          <label class="switch-item"><span class="switch"><input type="checkbox" id="panelToggle-miniStack" checked><span class="switch-slider"></span></span>全体キューブ</label>
-          <label class="switch-item"><span class="switch"><input type="checkbox" id="panelToggle-poolPanel" checked><span class="switch-slider"></span></span>候補プール</label>
-          <label class="switch-item"><span class="switch"><input type="checkbox" id="panelToggle-comboPanel" checked><span class="switch-slider"></span></span>組み合わせ検索</label>
-        </div>
-      </div>
+    <div class="side-section">
+      <div class="side-h">測定機 — 選択中のマスが属するライン</div>
+      <div id="lineList"></div>
+    </div>
 
-      <div class="side-section acc closed">
-        <div class="side-h">保存・共有</div>
-        <div class="acc-body">
-          <div class="side-desc" style="margin:0 0 8px;">盤面はこのブラウザに自動保存されます。URLは別の端末への引き継ぎや、他の人への共有に使えます。</div>
-          <button id="saveToURLBtn" class="ghost full">今の状態を共有URLでコピー</button>
-          <button id="sharePuzzleBtn" class="ghost full">この問題を最初から共有</button>
-        </div>
-      </div>
-
-      <div class="side-section acc closed">
-        <div class="side-h">凡例・仕様</div>
-        <div class="acc-body">
-          <div class="legend">
-            <span><i style="background:#ffffff"></i>白=最初から配置済み(固定)</span>
-            <span><i style="background:#3ee8ff"></i>蛍光ブルー=自分で置いた数字</span>
-            <span><i style="background:#ff8a7a"></i>赤=合計が合わない直線上の数字</span>
-            <span><i style="background:#ffb347"></i>オレンジ破線=仮置き(右クリックで切替)</span>
-            <span><i style="background:#e04a60"></i>赤枠=選択中の縦列(全体キューブをクリック)</span>
-            <span><i style="background:#ffd76a"></i>金枠=選択中の空間対角線(壁面の数値をクリック)</span>
-          </div>
-          <div class="caveat">「新しい問題」を押すたびに、全直線の合計が315になり、かつ論理的な推理だけで解けることを保証して自動生成します。全ティアで2マス同時の組み合わせ推理が複数回必須です。空間対角線4本(角→角で5層を貫く斜め)も315の対象です。</div>
-        </div>
-      </div>
-
+    <div class="side-section">
+      <div class="side-h">測定履歴</div>
+      <div id="measuredList"></div>
     </div>
   </aside>
-
-  <main class="main-area">
-    <div class="board-area">
-      <div id="boardPanel" class="board-panel">
-        <div class="board-drag-handle" id="boardDragHandle">
-          <span>⋮⋮ 盤面</span>
-          <div class="header-btn-group">
-            <button class="front-btn" data-front-target="boardPanel" title="最前面に固定(他のウィンドウの下に隠れなくなる)"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="2" width="8.5" height="8.5" rx="1.2" fill="currentColor"/><rect x="2" y="5.5" width="8.5" height="8.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
-            <button class="pin-btn" data-pin-target="boardPanel" title="ピン留め(位置固定)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.2 1.6 L14.4 6.8 L11.2 7.6 L8.6 10.2 L5.8 7.4 L8.4 4.8 Z" fill="currentColor"/><path d="M6.4 9.6 L2.2 13.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
-            <button id="boardToggle" class="sidebar-toggle" title="開閉"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="6.9" width="10" height="2.2" rx="1.1" fill="currentColor"/></svg></button>
-          </div>
-        </div>
-        <div id="cubeWrapOuter" class="cube-wrap-outer">
-          <div class="cube-wrap" id="cubeWrap"></div>
-        </div>
-      </div>
-    </div>
-  </main>
-
 </div>
 
-<div id="poolPanel" class="pool-card">
-  <div class="pool-head" id="poolPanelHead">
-    <span>⋮⋮ 候補プール</span>
-    <div class="header-btn-group">
-            <button class="front-btn" data-front-target="poolPanel" title="最前面に固定(他のウィンドウの下に隠れなくなる)"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="2" width="8.5" height="8.5" rx="1.2" fill="currentColor"/><rect x="2" y="5.5" width="8.5" height="8.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
-            <button class="pin-btn" data-pin-target="poolPanel" title="ピン留め(位置固定)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.2 1.6 L14.4 6.8 L11.2 7.6 L8.6 10.2 L5.8 7.4 L8.4 4.8 Z" fill="currentColor"/><path d="M6.4 9.6 L2.2 13.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
-            <button id="poolToggle" class="sidebar-toggle" title="開閉"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="6.9" width="10" height="2.2" rx="1.1" fill="currentColor"/></svg></button>
-          </div>
-  </div>
-  <div class="global-pool" id="globalPool"></div>
-</div>
-
-<div id="miniStack" class="mini-stack">
-  <div class="mini-stack-head" id="miniStackHead">
-    <span>⋮⋮ 全体キューブ</span>
-    <div class="header-btn-group">
-            <button class="front-btn" data-front-target="miniStack" title="最前面に固定(他のウィンドウの下に隠れなくなる)"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="2" width="8.5" height="8.5" rx="1.2" fill="currentColor"/><rect x="2" y="5.5" width="8.5" height="8.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
-            <button class="pin-btn" data-pin-target="miniStack" title="ピン留め(位置固定)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.2 1.6 L14.4 6.8 L11.2 7.6 L8.6 10.2 L5.8 7.4 L8.4 4.8 Z" fill="currentColor"/><path d="M6.4 9.6 L2.2 13.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
-            <button id="miniStackToggle" class="sidebar-toggle" title="開閉"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="6.9" width="10" height="2.2" rx="1.1" fill="currentColor"/></svg></button>
-          </div>
-  </div>
-  <div class="mini-stack-body" id="miniStackContent"></div>
-</div>
-
-<div id="comboPanel" class="combo-panel">
-  <div class="combo-head" id="comboPanelHead">
-    <span>⋮⋮ 組み合わせ検索</span>
-    <div class="header-btn-group">
-            <button class="front-btn" data-front-target="comboPanel" title="最前面に固定(他のウィンドウの下に隠れなくなる)"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="2" width="8.5" height="8.5" rx="1.2" fill="currentColor"/><rect x="2" y="5.5" width="8.5" height="8.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
-            <button class="pin-btn" data-pin-target="comboPanel" title="ピン留め(位置固定)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.2 1.6 L14.4 6.8 L11.2 7.6 L8.6 10.2 L5.8 7.4 L8.4 4.8 Z" fill="currentColor"/><path d="M6.4 9.6 L2.2 13.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
-            <button id="comboToggle" class="sidebar-toggle" title="開閉"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="6.9" width="10" height="2.2" rx="1.1" fill="currentColor"/></svg></button>
-          </div>
-  </div>
-  <div class="combo-body" id="comboBody">
-    <div class="side-desc" style="margin:0 0 8px;">残りプールの数字から、目標の合計になる組み合わせを探します。</div>
-    <div class="combo-row">
-      <div class="field">個数
-        <select id="comboCount" class="target-input">
-          <option value="2">2個</option>
-          <option value="3">3個</option>
-        </select>
-      </div>
-      <div class="field">目標<input type="number" id="comboTarget" class="target-input" placeholder="例 200"></div>
-    </div>
-    <button id="comboSearchBtn" class="ghost full">検索</button>
-    <div id="comboResults" class="combo-results"></div>
+<div id="clearOverlay" class="clear-overlay hidden">
+  <div class="clear-box">
+    <h2>修復完了</h2>
+    <p>109ラインすべてが315になりました。</p>
+    <button id="clearCloseBtn" class="ghost">閉じる</button>
   </div>
 </div>
 
-<div id="zoomControl" class="zoom-control">
-  <span class="zoom-label">縮小</span>
-  <input type="range" id="zoomSlider" min="60" max="160" value="100" step="5">
-  <span class="zoom-label">拡大</span>
-  <span id="zoomValue" class="zoom-value">100%</span>
-  <button id="layoutResetBtn" class="ghost" title="すべてのパネルの位置・開閉・ズームを初期状態に戻す">配置リセット</button>
-</div>
-
-<div id="ngBadge" class="ng-badge" style="display:none;" title="この問題は論理推理だけでは確定しないマスが残ります。仮置き(右クリック)で仮説を立てて検証してください。">⚠ 論理保証なし</div>
-
-<div id="genLoading" class="gen-loading" style="display:none;">
-  <div class="gen-loading-box">
-    <div class="gen-spinner"></div>
-    <div id="genLoadingText">問題を生成中…</div>
-  </div>
-</div>
-
-<div id="mobileNotice" class="mobile-notice">
-  <div class="mobile-notice-box">
-    <div class="mobile-notice-title">PCでのプレイを推奨します</div>
-    <p>このパズルは横長の大きな画面(PC)向けに設計されています。<br>スマートフォンでは表示や操作が崩れる場合があります。</p>
-    <button id="mobileNoticeClose" class="primary">それでも遊ぶ</button>
-  </div>
-</div>
-
-<div id="toastContainer" class="toast-container"></div>
-
-<div id="tutorialModal" class="modal-overlay" style="display:none;">
-  <div class="modal-box tutorial-box">
-    <button id="closeTutorial" class="modal-close" title="閉じる">×</button>
-    <div class="stack-head">遊び方</div>
-    <p class="tut-text">1〜125の数字を5層(LEVEL1〜5)×5×5マスに配置します。ゴールは、以下のすべての直線の合計を315に揃えることです。</p>
-    <div class="tut-grid">
-      <div class="tut-item">
-        <div class="tut-diagram" id="tutDiagRow"></div>
-        <div class="tut-caption">① 各LEVEL内の「行」</div>
-      </div>
-      <div class="tut-item">
-        <div class="tut-diagram" id="tutDiagCol"></div>
-        <div class="tut-caption">② 各LEVEL内の「列」</div>
-      </div>
-      <div class="tut-item">
-        <div class="tut-diagram" id="tutDiagDiag"></div>
-        <div class="tut-caption">③ 各LEVEL内の「対角線」(2本)</div>
-      </div>
-      <div class="tut-item">
-        <div class="tut-diagram" id="tutDiagDepth"></div>
-        <div class="tut-caption">④ 同じ位置で5層を貫く「縦列」</div>
-      </div>
-      <div class="tut-item">
-        <div class="tut-diagram" id="tutDiagTriag"></div>
-        <div class="tut-caption">⑤ 角→角で5層を斜めに貫く「空間対角線」(4本)<br><span style="font-size:10px;opacity:0.7;">※図は各層での通過位置。層が下がるごとに1マスずつずれる</span></div>
-      </div>
-    </div>
-    <p class="tut-text">空間対角線の現在合計は「全体キューブ」の壁面に表示され、クリックすると対象マスがハイライトされます。</p>
-    <p class="tut-text">数字は「候補プール」から選んでマスをクリック、またはマスを先にクリックしてから数字を選んでも配置できます。マスを選んだ状態でキーボードから数字を打ち、Enterまたは別のマスのクリックで確定できます(Escで取消)。すべてのマスが埋まると自動で判定されます。</p>
-  </div>
-</div>
-
-
-<script src="js/generator.js?v=20260706j"></script>
-<script src="js/render.js?v=20260706j"></script>
-<script src="js/main.js?v=20260706j"></script>
+<script src="js/generator.js"></script>
+<script src="js/render.js"></script>
+<script src="js/repair/cube-data.js"></script>
+<script src="js/repair/lines109.js"></script>
+<script src="js/repair/puzzle.js"></script>
+<script src="js/repair/measure.js"></script>
+<script src="js/repair/repair-main.js"></script>
 </body>
 </html>

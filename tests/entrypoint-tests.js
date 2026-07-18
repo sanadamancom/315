@@ -1,0 +1,56 @@
+// tests/entrypoint-tests.js — index.html統合とライン表示名の検証(静的解析、DOM非依存)。
+// 実行: node tests/entrypoint-tests.js
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
+let pass = 0, fail = 0;
+function check(name, cond){
+  if(cond){ pass++; console.log(`  ok  - ${name}`); }
+  else { fail++; console.log(`  FAIL - ${name}`); }
+}
+
+console.log('== entrypoint (index.html) ==');
+{
+  const root = path.join(__dirname, '..');
+  const indexPath = path.join(root, 'index.html');
+  const html = fs.readFileSync(indexPath, 'utf8');
+
+  check('index.htmlが修復型モジュールを読み込む', /js\/repair\/repair-main\.js/.test(html));
+  check('index.htmlが旧js\\/main.jsを読み込まない', !/js\/main\.js/.test(html));
+  check('repair.htmlが削除されている', !fs.existsSync(path.join(root, 'repair.html')));
+
+  const forbidden = ['ふつう','むずかしい','とても難しい','難易度選択','新しい問題','候補プール','組み合わせ検索','お助け機能','ランダム問題生成'];
+  check('index.htmlに旧3難易度ボタン等が存在しない', forbidden.every(s => !html.includes(s)));
+
+  const required = ['修復型パズル','固定セル117個','未確定セル8個','測定機','測定履歴','リセット','Undo'];
+  check('index.htmlに必須表記が揃っている', required.every(s => html.includes(s)));
+}
+
+console.log('== line labels (109本の表示名) ==');
+{
+  const files = ['js/generator.js', 'js/repair/cube-data.js', 'js/repair/lines109.js'];
+  const ctx = {};
+  vm.createContext(ctx);
+  for(const f of files){
+    vm.runInContext(fs.readFileSync(path.join(__dirname,'..',f),'utf8'), ctx, { filename: f });
+  }
+  vm.runInContext('globalThis.buildLines109 = buildLines109; globalThis.lineLabel = lineLabel;', ctx);
+
+  const lines = ctx.buildLines109();
+  check('109ラインが構築される(構造は不変)', lines.length === 109);
+
+  const labels = lines.map(ctx.lineLabel);
+  check('109本すべて表示名が空でない', labels.every(l => typeof l === 'string' && l.length > 0));
+  check('109本すべて表示名が一意', new Set(labels).size === 109);
+
+  // 同種ライン(row)が位置で区別できる例
+  const rowLabels = lines.filter(l=>l.type==='row').map(ctx.lineLabel);
+  check('同種ライン(行)も位置で区別できる', new Set(rowLabels).size === rowLabels.length);
+  const xyMainLabels = lines.filter(l=>l.type==='xy-main').map(ctx.lineLabel);
+  check('同種ライン(平面対角↘)も層で区別できる', new Set(xyMainLabels).size === xyMainLabels.length);
+}
+
+console.log(`\n${pass} passed, ${fail} failed`);
+process.exit(fail === 0 ? 0 : 1);

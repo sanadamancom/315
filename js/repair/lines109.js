@@ -43,14 +43,22 @@ function buildLines109(){
   return lines;
 }
 
-const LABEL_BY_TYPE = {
-  row: '行', col: '列', pillar: '柱',
-  'xy-main': '平面対角線(xy)', 'xy-anti': '平面対角線(xy)',
-  'xz-main': '平面対角線(xz)', 'xz-anti': '平面対角線(xz)',
-  'yz-main': '平面対角線(yz)', 'yz-anti': '平面対角線(yz)',
-  space: '空間対角線',
-};
+// 人間が一意に識別できる表示名。内部key/構造は変更しない。
+const SPACE_DIAG_LABEL = { 'space-1':'A', 'space-2':'B', 'space-3':'C', 'space-4':'D' };
 
 function lineLabel(line){
-  return LABEL_BY_TYPE[line.type] || line.type;
+  const parts = line.key.split('-');
+  switch(line.type){
+    case 'row':    return `L${Number(parts[1])+1} 行${Number(parts[2])+1}`;
+    case 'col':    return `L${Number(parts[1])+1} 列${Number(parts[2])+1}`;
+    case 'pillar': return `柱 行${Number(parts[1])+1}・列${Number(parts[2])+1}`;
+    case 'xy-main': return `L${Number(parts[2])+1} 平面対角 ↘`;
+    case 'xy-anti': return `L${Number(parts[2])+1} 平面対角 ↙`;
+    case 'xz-main': return `縦断面 行${Number(parts[2])+1} ↘`;
+    case 'xz-anti': return `縦断面 行${Number(parts[2])+1} ↙`;
+    case 'yz-main': return `縦断面 列${Number(parts[2])+1} ↘`;
+    case 'yz-anti': return `縦断面 列${Number(parts[2])+1} ↙`;
+    case 'space':   return `空間対角線 ${SPACE_DIAG_LABEL[line.key] || line.key}`;
+    default: return line.key;
+  }
 }
