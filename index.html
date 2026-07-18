@@ -316,7 +316,6 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:1px;}
 .iso-cell .cube-face{transition:filter .1s ease;pointer-events:auto;}
 .iso-cell:hover .cube-face{filter:brightness(1.3);}
 .cube-label{font-family:var(--mono);font-weight:700;font-size:21px;pointer-events:none;fill:var(--bone);}
-.cmp-glyph{stroke:var(--warn);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none;opacity:0.9;}
 .iso-cell.empty .cube-label{fill:rgba(233,224,207,0.35);font-weight:400;}
 .iso-cell.placeable .cube-face{
   filter:brightness(1.45) saturate(1.3);
@@ -514,27 +513,6 @@ button:focus-visible{outline:2px solid var(--brass);outline-offset:1px;}
 .stack-cell.techo .cube-face{filter:brightness(1.6);stroke:#ffd76a !important;stroke-width:2.5 !important;}
 .stack-wall.techo{filter:brightness(1.6) !important;stroke:#ffd76a !important;stroke-width:2.5 !important;}
 
-/* ---------------- 村正モード専用テーマ ----------------
-   配色出典: パッケージ = 血赤の地に黒の筆致・金の題字・魔人の金眼 /
-   三世村正 = 緋のスカート・黒装・白銀の髪・金の瞳と飾り紐 */
-body.theme-murasama{
-  --bg:#130406;            /* 黒に沈む赤 */
-  --panel:#200a0e;
-  --panel-2:#2a0f14;
-  --line:#5a1a22;
-  --brass:#d4a03c;         /* 題字・瞳・飾り紐の金 */
-  --brass-dim:#8a6a2c;
-  --blood:#a01524;
-  --blood-bright:#d3232f;  /* 緋(朱赤) */
-  --bone:#f2e8e0;          /* 白銀の髪の生成り白 */
-  --bone-dim:#bfa294;
-}
-body.theme-murasama{
-  background:
-    radial-gradient(ellipse at 50% 18%, #4a080e 0%, #2a0509 48%, var(--bg) 78%),
-    repeating-linear-gradient(-35deg, rgba(0,0,0,0.20) 0px, rgba(0,0,0,0.20) 3px, transparent 3px, transparent 30px);
-}
-
 /* 幅が狭い画面では中央下のズームバーが候補プール(left:310〜730)を覆うため右下へ退避。
    トーストは押し出されないよう少し持ち上げる */
 @media (max-width: 1520px){
@@ -591,16 +569,13 @@ body.theme-murasama{
             <button class="diff-btn active" data-diff="normal">ふつう</button>
             <button class="diff-btn" data-diff="hard">むずかしい</button>
             <button class="diff-btn" data-diff="oni">とても難しい</button>
-            <button class="diff-btn" id="scrambleBtn">ランダム</button>
-            <button class="diff-btn" id="originalBtn">村正</button>
-            <button class="diff-btn" id="customBtn" title="下のL1〜L5の数値で生成">カスタム</button>
           </div>
           <div class="hint-grid">
-            <div class="field">L1<input type="number" id="hint-1" class="target-input" value="13" min="6" max="25"></div>
-            <div class="field">L2<input type="number" id="hint-2" class="target-input" value="13" min="6" max="25"></div>
-            <div class="field">L3<input type="number" id="hint-3" class="target-input" value="13" min="6" max="25"></div>
-            <div class="field">L4<input type="number" id="hint-4" class="target-input" value="13" min="6" max="25"></div>
-            <div class="field">L5<input type="number" id="hint-5" class="target-input" value="13" min="6" max="25"></div>
+            <div class="field">L1<input type="number" id="hint-1" class="target-input" value="13" min="6" max="25" readonly></div>
+            <div class="field">L2<input type="number" id="hint-2" class="target-input" value="13" min="6" max="25" readonly></div>
+            <div class="field">L3<input type="number" id="hint-3" class="target-input" value="13" min="6" max="25" readonly></div>
+            <div class="field">L4<input type="number" id="hint-4" class="target-input" value="13" min="6" max="25" readonly></div>
+            <div class="field">L5<input type="number" id="hint-5" class="target-input" value="13" min="6" max="25" readonly></div>
           </div>
           <button id="newPuzzleBtn" class="primary full">新しい問題</button>
           <button id="resetBtn" class="ghost full">やり直す</button>
@@ -655,7 +630,7 @@ body.theme-murasama{
             <span><i style="background:#e04a60"></i>赤枠=選択中の縦列(全体キューブをクリック)</span>
             <span><i style="background:#ffd76a"></i>金枠=選択中の空間対角線(壁面の数値をクリック)</span>
           </div>
-          <div class="caveat">「新しい問題」を押すたびに、全直線の合計が315になり、かつ論理的な推理だけで解けることを保証して自動生成します。全ティアで2マス同時の組み合わせ推理が複数回必須です。空間対角線4本(角→角で5層を貫く斜め)も315の対象です。初期配置は各層6〜25個で手動指定も可能(少ないほど難しい)。11個未満を含むカスタム設定は論理保証なし(=推理だけでは確定しないマスが残り得る)で、仮置きによる仮説検証が前提の領域です。</div>
+          <div class="caveat">「新しい問題」を押すたびに、全直線の合計が315になり、かつ論理的な推理だけで解けることを保証して自動生成します。全ティアで2マス同時の組み合わせ推理が複数回必須です。空間対角線4本(角→角で5層を貫く斜め)も315の対象です。</div>
         </div>
       </div>
 

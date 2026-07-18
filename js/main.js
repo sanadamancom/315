@@ -4,14 +4,10 @@
 
 let SOLUTION = null;
 let given = {};             // given[L][r][c] = true/false (fixed starting cells)
-let comparisons = {};       // comparisons[L] = [{r,c,dir,sign}, ...] 隣接マスの大小関係ヒント
-let comparisonIndex = {};   // buildComparisonIndex(comparisons) の結果。推理エンジンへ渡す双方向インデックス
-const COMPARISON_HINTS_PER_LEVEL = 3; // 1層あたりに配置する不等号ヒントの本数
 let grid = {};               // grid[L][r][c] = value or null
 let allPlayableValues = [];  // every value that is NOT a given/fixed cell, always shown in the pool
 let tentative = {};          // tentative[L][r][c] = true/false -- "maybe this, not confirmed" marker (right-click, like Minesweeper flags)
-let forcedEmptyPositions = null; // {L: [[r,c],...]} -- overrides random scattering for specific presets (e.g. "オリジナル風")
-// which difficulty mode is active: a DIFFICULTY_PRESETS key | 'random' | 'custom' | 'murasama'.
+// which difficulty mode is active: a DIFFICULTY_PRESETS key.
 // Label AND generation constraints are both derived from this single value, so the
 // clear-screen label can never disagree with what the menu shows.
 let currentMode = 'normal';
@@ -30,7 +26,7 @@ let labelMode = 'sum';   // 'sum' | 'remaining' | 'fillcount' | 'off' -- mutuall
 let startTime = null;         // timestamp when the current puzzle was generated
 let clearedSeconds = null;    // time of the FIRST successful clear this puzzle; frozen after that
 let isSurrender = false;      // true if the current clear was reached via the surrender button
-let currentDifficultyLabel = 'ふつう'; // for the clear screen: which preset (or "ランダム") is active
+let currentDifficultyLabel = 'ふつう'; // for the clear screen: which preset is active
 
 let history = [];    // array of grid snapshots (deep copies); index 0 = initial state
 let historyIndex = -1;
@@ -133,7 +129,6 @@ function applyDifficultyPreset(name){
   if(generating) return; // 生成中の切替はハイライトと実際の問題の食い違いを生むため無視
   const preset = DIFFICULTY_PRESETS[name];
   if(!preset) return;
-  forcedEmptyPositions = null;
   currentMode = name;
   for(let L=1; L<=LEVELS; L++){
     document.getElementById(`hint-${L}`).value = preset.perLevel[L-1];
@@ -152,46 +147,17 @@ function setActiveDiffButton(selector){
   if(el) el.classList.add('active');
 }
 
-// switching to custom mode: triggered by the カスタム button or by manually editing
-// any L1-L5 hint field. Only changes the mode/highlight -- generation happens on
-// 新しい問題 (or immediately via the button when the board has no answers yet).
-function markCustom(){
-  if(generating) return;
-  currentMode = 'custom';
-  forcedEmptyPositions = null;
-  setActiveDiffButton('#customBtn');
-}
-
-function murasamaLayout(){
-  const bottomBlock = [];
-  for(let r=2;r<=4;r++) for(let c=2;c<=4;c++) bottomBlock.push([r,c]);
-  return { 1:[], 2:[], 3:[], 4:bottomBlock, 5:bottomBlock };
-}
-
 // single source of truth: label + generation constraints per mode.
-// noGuarantee=true means: skip the deducibility solver entirely and serve the first
-// generated board -- the puzzle still has (at least) the generated solution, but pure
-// logic may dead-end, so hypothesis + tentative marks become part of the game.
 function modeConstraints(hc){
-  if(currentMode === 'murasama') return { label:'村正', genuine:false, minPairRounds:0, noGuarantee:false };
-  if(currentMode === 'random')   return { label:'ランダム', genuine:true, minPairRounds:0, noGuarantee:false };
-  if(currentMode !== 'custom' && DIFFICULTY_PRESETS[currentMode]){
-    const p = DIFFICULTY_PRESETS[currentMode];
-    return { label:p.label, genuine:p.genuine2Blank, minPairRounds:p.minPairRounds||0, noGuarantee:!!p.noGuarantee };
-  }
-  const vals = [hc[1],hc[2],hc[3],hc[4],hc[5]];
-  return {
-    label:`カスタム(${vals.join('/')})`,
-    genuine:false, minPairRounds:0,
-    noGuarantee: vals.some(v => v < 11), // 11未満(=10以下)を含む設定は保証なし枠
-  };
+  const p = DIFFICULTY_PRESETS[currentMode] || DIFFICULTY_PRESETS.normal;
+  return { label:p.label, genuine:p.genuine2Blank, minPairRounds:p.minPairRounds||0, noGuarantee:!!p.noGuarantee };
 }
 
 // Simulates the same deduction logic as assistFill() on a throwaway copy of the grid
 // and returns HOW MANY cells remain unfilled. 0 = fully solvable by pure deduction.
 // With include2Blank=false the return value is the number of cells that 1-blank
 // subtraction alone cannot reach -- our measurable "pair reasoning workload" metric.
-function solveResidue(SOL, giv, include2Blank, cmpIdx){
+function solveResidue(SOL, giv, include2Blank){
   if(include2Blank === undefined) include2Blank = true;
   const tempGrid = {};
   const played = [];
@@ -207,7 +173,7 @@ function solveResidue(SOL, giv, include2Blank, cmpIdx){
   let progress = true;
   while(progress){
     progress = false;
-    const confirmed = findConfirmedPlacements(tempGrid, giv, played, N, LEVELS, TARGET, include2Blank, cmpIdx);
+    const confirmed = findConfirmedPlacements(tempGrid, giv, played, N, LEVELS, TARGET, include2Blank);
     for(const { L, r, c, value } of confirmed){
       if(tempGrid[L][r][c] !== null) continue;
       let usedElsewhere = false;
@@ -228,7 +194,7 @@ function solveResidue(SOL, giv, include2Blank, cmpIdx){
 // 残数(solveResidue)だけでは、1回のペア推理が連鎖的に大半を解いてしまう
 // ケースを区別できず、体感難度を正しく表せない(実測: 残数30以上でも
 // 発動回数はわずか1〜3回のことがある)。生成時の受理条件はこちらを使う。
-function countPairRounds(SOL, giv, cmpIdx){
+function countPairRounds(SOL, giv){
   const g = {}; const played = [];
   for(let L=1; L<=LEVELS; L++){
     g[L] = Array.from({length:N},()=>Array(N).fill(null));
@@ -240,7 +206,7 @@ function countPairRounds(SOL, giv, cmpIdx){
     let progress = true;
     while(progress){
       progress = false;
-      const confirmed = findConfirmedPlacements(g, giv, played, N, LEVELS, TARGET, false, cmpIdx);
+      const confirmed = findConfirmedPlacements(g, giv, played, N, LEVELS, TARGET, false);
       for(const {L,r,c,value} of confirmed){
         if(g[L][r][c] !== null) continue;
         let used = false;
@@ -257,7 +223,7 @@ function countPairRounds(SOL, giv, cmpIdx){
     let remaining = 0;
     for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(g[L][r][c]===null) remaining++;
     if(remaining === 0) return { solved:true, rounds };
-    const confirmed2 = findConfirmedPlacements(g, giv, played, N, LEVELS, TARGET, true, cmpIdx);
+    const confirmed2 = findConfirmedPlacements(g, giv, played, N, LEVELS, TARGET, true);
     let placedThisRound = 0;
     for(const {L,r,c,value} of confirmed2){
       if(g[L][r][c] !== null) continue;
@@ -295,14 +261,9 @@ function newPuzzle(){
     given = {};
     for(let L=1; L<=LEVELS; L++){
       given[L] = Array.from({length:N},()=>Array(N).fill(false));
-      let emptyPositions;
-      if(forcedEmptyPositions && forcedEmptyPositions[L]){
-        emptyPositions = forcedEmptyPositions[L];
-      } else {
-        const positions = [];
-        for(let r=0;r<N;r++) for(let c=0;c<N;c++) positions.push([r,c]);
-        emptyPositions = shuffled(positions).slice(0, N*N - hc[L]);
-      }
+      const positions = [];
+      for(let r=0;r<N;r++) for(let c=0;c<N;c++) positions.push([r,c]);
+      const emptyPositions = shuffled(positions).slice(0, N*N - hc[L]);
       const emptySet = new Set(emptyPositions.map(([r,c])=>`${r},${c}`));
       for(let r=0;r<N;r++){
         for(let c=0;c<N;c++){
@@ -310,43 +271,17 @@ function newPuzzle(){
         }
       }
     }
-    // the hand-picked layout ("村正") is accepted as long as it's deducible. Everything
-    // else must be solvable by pure logical deduction (1-blank + 2-blank combined) AND
+    // must be solvable by pure logical deduction (1-blank + 2-blank combined) AND
     // require at least minPairRounds INDEPENDENT rounds of 2-blank reasoning to reach
     // the solution -- a single residual-cell count was a poor proxy (one lucky pair
     // deduction could cascade and solve most of the board via 1-blank afterward).
     if(cons.noGuarantee){
-      comparisons = {}; comparisonIndex = buildComparisonIndex(comparisons, LEVELS);
-      return true; // 低ヒントカスタム: 検証なしで即出題
+      return true;
     }
-    if(forcedEmptyPositions){
-      comparisons = {}; comparisonIndex = buildComparisonIndex(comparisons, LEVELS); // 村正は不等号ヒントなし(固定配置のオマージュ)
-      return solveResidue(SOLUTION, given, true) === 0;
-    }
-    // 二段階方式:
-    // 1) まず純粋な数値推理(不等号ヒントなし)だけで難易度基準を満たすか検証する。
-    //    これは従来から実績のある高速・高成功率な判定なので、外側の
-    //    SOLUTION/given探索の信頼性(300回上限に達しにくい)をそのまま維持できる。
-    // 2) 基準を満たした場合のみ、その場で不等号ヒントを複数パターン試し、
-    //    ヒントを加えても基準を満たしたままの組み合わせを探す。見つからなければ
-    //    ヒントなし(comparisons={})にフォールバックするだけで、パズル自体は
-    //    既に基準を満たしているため生成をやり直す必要はない。
     const base = countPairRounds(SOLUTION, given);
     if(!base.solved) return false;
     const baseOk = (!cons.genuine || base.rounds > 0) && base.rounds >= cons.minPairRounds;
-    if(!baseOk) return false;
-
-    comparisons = {}; comparisonIndex = buildComparisonIndex(comparisons, LEVELS); // フォールバック初期値
-    for(let cTry=0; cTry<15; cTry++){
-      const cmp = generateComparisonHints(SOLUTION, N, LEVELS, COMPARISON_HINTS_PER_LEVEL, given);
-      const cmpIdx = buildComparisonIndex(cmp, LEVELS);
-      const withCmp = countPairRounds(SOLUTION, given, cmpIdx);
-      if(withCmp.solved && (!cons.genuine || withCmp.rounds > 0) && withCmp.rounds >= cons.minPairRounds){
-        comparisons = cmp; comparisonIndex = cmpIdx;
-        break;
-      }
-    }
-    return true;
+    return baseOk;
   };
 
   // run generation in <=40ms slices so the browser can keep painting the spinner
@@ -431,49 +366,7 @@ function showGenLoading(on, attempt){
 
 // exposed for automated tests (let変数はwindowプロパティにならないため)
 function isGenerating(){ return generating; }
-function getComparisons(){ return comparisons; }
 function getCurrentMode(){ return currentMode; }
-function getComparisonIndex(){ return comparisonIndex; }
-
-// Random/scramble mode: every cell starts filled but with a shuffled (wrong) number,
-// and nothing is fixed -- the puzzle is to rearrange them into a valid configuration.
-// This avoids the "expert" 0-hint mode always playing out as the same empty-board grind.
-// "ランダム": give each tier its own independently-random hint count (instead of
-// every tier sharing the same difficulty), then generate a puzzle normally from that.
-function randomizeDifficulty(){
-  if(generating) return;
-  forcedEmptyPositions = null;
-  currentMode = 'random';
-  setActiveDiffButton('#scrambleBtn');
-  for(let L=1; L<=LEVELS; L++){
-    const v = 11 + randInt(4); // 11-14 (全ティア推論必須の範囲), independently per tier
-    document.getElementById(`hint-${L}`).value = v;
-  }
-  if(!hasAnyPlayerAnswers()){
-    newPuzzle();
-  } else {
-    showToast('初期配置の数を変更しました。「新しい問題」を押すと反映されます。', 'info');
-  }
-}
-
-// "オリジナル風": mirrors the actual game's layout -- Level1-3 fully solved from the
-// start, Level4-5 only missing a clustered 3x3 block (bottom-center), so the depth-line
-// constraint through the 3 completed levels becomes an immediately usable clue.
-function applyOriginalStylePreset(){
-  if(generating) return;
-  currentMode = 'murasama';
-  setActiveDiffButton('#originalBtn');
-  const hints = [25,25,25,16,16];
-  for(let L=1; L<=LEVELS; L++){
-    document.getElementById(`hint-${L}`).value = hints[L-1];
-  }
-  forcedEmptyPositions = murasamaLayout();
-  if(!hasAnyPlayerAnswers()){
-    newPuzzle();
-  } else {
-    showToast('初期配置の数を変更しました。「新しい問題」を押すと反映されます。', 'info');
-  }
-}
 
 function restartSamePuzzle(){
   for(let L=1; L<=LEVELS; L++){
@@ -633,7 +526,7 @@ function assistFill(){
   // subtraction. (2-blank pair reasoning is deliberately EXCLUDED here -- include2Blank
   // is false -- so that on 普通以上 the player still has real deduction left to do.)
   // Clicking again re-scans for a fresh round.
-  const confirmed = findConfirmedPlacements(grid, given, allPlayableValues, N, LEVELS, TARGET, false, comparisonIndex);
+  const confirmed = findConfirmedPlacements(grid, given, allPlayableValues, N, LEVELS, TARGET, false);
   let placedAny = false;
   for(const { L, r, c, value } of confirmed){
     if(grid[L][r][c] !== null) continue; // already filled by an earlier item in this same batch
@@ -703,19 +596,7 @@ function encodeCurrentState(includeProgress){
   for(let i=0;i<gridBytes.length;i++) bytes.push(gridBytes[i]);
   for(let i=0;i<16;i++) bytes.push(tentBits[i]);
   bytes.push((e>>>24)&255, (e>>>16)&255, (e>>>8)&255, e&255);
-  // 大小関係ヒント(comparisons)を末尾に追記。1層ごとに [本数1byte, (セル番号1byte+フラグ1byte)×本数]
-  // フラグ: bit0=方向(1:右R/0:下D) bit1=符号(1:'<' /0:'>')
-  bytes.push(LEVELS);
-  for(let L=1; L<=LEVELS; L++){
-    const arr = comparisons[L] || [];
-    bytes.push(arr.length);
-    for(const e2 of arr){
-      const cellIdx = e2.r*N + e2.c;
-      const flags = (e2.dir==='R'?1:0) | (e2.sign==='<'?2:0);
-      bytes.push(cellIdx, flags);
-    }
-  }
-  return 'v3.' + bytesToB64url(bytes);
+  return 'v2.' + bytesToB64url(bytes);
 }
 
 function buildShareURL(includeProgress){
@@ -753,53 +634,16 @@ function shareProblemURL(){
 function applyStateString(s){
   try{
     let solArr, givArr, gridArr, tentArr, elapsedSeconds;
-    let restoredComparisons = null; // v3のみ復元、v2/legacyはnull(=なし)
 
-    if(s.indexOf('v3.') === 0){
-      const p = b64urlToBytes(s.slice(3));
-      if(p.length < 125 + 16 + 16 + 4 + 1) return false;
-      solArr = Array.prototype.slice.call(p, 0, 125);
-      givArr = [];
-      for(let i=0;i<125;i++) givArr.push((p[125 + (i>>3)] >> (i & 7)) & 1);
-      const nonGiven = givArr.reduce((a,g)=> a + (g === 0 ? 1 : 0), 0);
-      gridArr = [];
-      let gp = 125 + 16;
-      for(let i=0;i<125;i++){
-        if(givArr[i] === 1) gridArr.push(solArr[i]);
-        else gridArr.push(p[gp++]);
-      }
-      tentArr = [];
-      for(let i=0;i<125;i++) tentArr.push((p[gp + (i>>3)] >> (i & 7)) & 1);
-      const ep = gp + 16;
-      elapsedSeconds = ((p[ep]<<24) | (p[ep+1]<<16) | (p[ep+2]<<8) | p[ep+3]) >>> 0;
-      let cp = ep + 4;
-      const nLevels = p[cp++];
-      if(!Number.isFinite(nLevels) || nLevels < 0 || nLevels > 32) return false;
-      restoredComparisons = {};
-      for(let li=1; li<=nLevels; li++){
-        const count = p[cp++];
-        if(count === undefined) return false;
-        const arr = [];
-        for(let k=0;k<count;k++){
-          const cellIdx = p[cp++], flags = p[cp++];
-          if(cellIdx === undefined || flags === undefined) return false;
-          arr.push({
-            r: Math.floor(cellIdx / N), c: cellIdx % N,
-            dir: (flags & 1) ? 'R' : 'D',
-            sign: (flags & 2) ? '<' : '>',
-          });
-        }
-        restoredComparisons[li] = arr;
-      }
-    } else if(s.indexOf('v2.') === 0){
-      // compact binary format (comparisons機能追加以前。ヒントなしとして復元)
+    if(s.indexOf('v3.') === 0 || s.indexOf('v2.') === 0){
+      // v3は大小ヒント機能があった頃の旧フォーマット。ヒント部分は読み飛ばして復元する。
       const p = b64urlToBytes(s.slice(3));
       if(p.length < 125 + 16 + 16 + 4) return false;
       solArr = Array.prototype.slice.call(p, 0, 125);
       givArr = [];
       for(let i=0;i<125;i++) givArr.push((p[125 + (i>>3)] >> (i & 7)) & 1);
       const nonGiven = givArr.reduce((a,g)=> a + (g === 0 ? 1 : 0), 0);
-      if(p.length !== 125 + 16 + nonGiven + 16 + 4) return false;
+      if(p.length < 125 + 16 + nonGiven + 16 + 4) return false; // v3の旧データは末尾に大小ヒントバイトが付くため以上判定
       gridArr = [];
       let gp = 125 + 16;
       for(let i=0;i<125;i++){
@@ -860,8 +704,6 @@ function applyStateString(s){
       }
     }
     allPlayableValues.sort((a,b)=>a-b);
-    comparisons = restoredComparisons || {};
-    comparisonIndex = buildComparisonIndex(comparisons, LEVELS);
     currentNoGuarantee = solveResidue(SOLUTION, given, true) !== 0; // 復元時も再計算
     selected = null; selectedCell = null; selectedDepth = null; selectedTriag = null; typingBuffer = '';
     startTime = Date.now() - elapsedSeconds*1000; // resume the timer from where it was
@@ -922,19 +764,13 @@ function tryLoadFromLocal(){
     if(!data || typeof data.s !== 'string') return false;
     if(!applyStateString(data.s)) return false;
     currentDifficultyLabel = data.label || '前回の続き';
-    // restore the difficulty-menu state (mode, hint values, button highlight, 村正 layout)
-    if(data.mode){
+    // restore the difficulty-menu state (mode, hint values, button highlight)
+    if(data.mode && DIFFICULTY_PRESETS[data.mode]){
       currentMode = data.mode;
       if(Array.isArray(data.hints) && data.hints.length === 5){
         for(let L=1; L<=LEVELS; L++) document.getElementById(`hint-${L}`).value = data.hints[L-1];
       }
-      forcedEmptyPositions = currentMode === 'murasama' ? murasamaLayout() : null;
-      setActiveDiffButton(
-        currentMode === 'random' ? '#scrambleBtn'
-        : currentMode === 'murasama' ? '#originalBtn'
-        : currentMode === 'custom' ? '#customBtn'
-        : `.diff-btn[data-diff="${currentMode}"]`
-      );
+      setActiveDiffButton(`.diff-btn[data-diff="${currentMode}"]`);
     }
     if(typeof data.cleared === 'number'){
       // already solved: freeze the timer at the clear time instead of resuming it
@@ -1281,10 +1117,6 @@ function renderAll(){
   const ngBadge = document.getElementById('ngBadge');
   if(ngBadge) ngBadge.style.display = currentNoGuarantee ? 'block' : 'none';
   positionNgBadge();
-
-  // 村正モード限定テーマ (色はCSSの body.theme-murasama で定義)
-  document.body.classList.toggle('theme-murasama', currentDifficultyLabel === '村正');
-
 
   saveToLocal();
 }
@@ -1685,20 +1517,6 @@ function commitTypedValue(){
   if(isBoardFull()) checkAnswer();
 }
 document.getElementById('comboSearchBtn').addEventListener('click', runComboSearch);
-document.getElementById('scrambleBtn').addEventListener('click', randomizeDifficulty);
-// manually editing hint counts switches to custom mode: the カスタム button lights up
-// and the clear screen will honestly report カスタム(L1/L2/L3/L4/L5)
-for(let L=1; L<=LEVELS; L++){
-  document.getElementById(`hint-${L}`).addEventListener('input', markCustom);
-}
-document.getElementById('customBtn').addEventListener('click', ()=>{
-  markCustom();
-  if(!hasAnyPlayerAnswers()){
-    newPuzzle();
-  } else {
-    showToast('カスタム設定に切り替えました。「新しい問題」を押すと反映されます。', 'info');
-  }
-});
 // 2: accordion sections in the sidebar
 document.querySelectorAll('.side-section.acc .side-h').forEach(h=>{
   h.addEventListener('click', ()=>{
@@ -1718,7 +1536,6 @@ PANEL_TOGGLE_IDS.forEach(id=>{
     saveLayout();
   });
 });
-document.getElementById('originalBtn').addEventListener('click', applyOriginalStylePreset);
 document.querySelectorAll('.diff-btn[data-diff]').forEach(b=>{
   b.addEventListener('click', ()=> applyDifficultyPreset(b.dataset.diff));
 });

@@ -392,40 +392,6 @@ function buildLevelCard(L){
 
   addGridLines(board, N, TILE_W, TILE_H, originX, LEVEL_LINE_COLOR[L]);
 
-  // 大小関係ヒント(＞/＜)を、2セルの「実際の共有境界線」上に描画する。
-  // 開き側(後端2点)を境界線上に置き、尖端を小さい方のセルへ垂直に伸ばすと、
-  // 境界線の単位ベクトルと法線ベクトルが直交するため開き角は必ずちょうど90°になる。
-  const cmpList = (typeof comparisons !== 'undefined' && comparisons[L]) ? comparisons[L] : [];
-  for(const e of cmpList){
-    const [nr, nc] = e.dir === 'R' ? [e.r, e.c+1] : [e.r+1, e.c];
-    // 共有境界線の両端(2セルに共通する2つの頂点)
-    const edgeP1 = e.dir === 'R' ? vertexPoint(e.r, e.c+1, TILE_W,TILE_H,originX) : vertexPoint(e.r+1, e.c, TILE_W,TILE_H,originX);
-    const edgeP2 = vertexPoint(e.r+1, e.c+1, TILE_W,TILE_H,originX); // R/Dどちらも共有頂点はここ
-    const mx = (edgeP1.x + edgeP2.x) / 2, my = (edgeP1.y + edgeP2.y) / 2;
-    const edx = edgeP2.x - edgeP1.x, edy = edgeP2.y - edgeP1.y;
-    const elen = Math.hypot(edx, edy) || 1;
-    const eux = edx/elen, euy = edy/elen; // 境界線に沿った単位ベクトル
-    let pux = -euy, puy = eux;            // 境界線に垂直な単位ベクトル(どちらか一方の向き)
-
-    const cA = { x:(vertexPoint(e.r,e.c,TILE_W,TILE_H,originX).x + vertexPoint(e.r+1,e.c+1,TILE_W,TILE_H,originX).x)/2,
-                 y:(vertexPoint(e.r,e.c,TILE_W,TILE_H,originX).y + vertexPoint(e.r+1,e.c+1,TILE_W,TILE_H,originX).y)/2 };
-    const cB = { x:(vertexPoint(nr,nc,TILE_W,TILE_H,originX).x + vertexPoint(nr+1,nc+1,TILE_W,TILE_H,originX).x)/2,
-                 y:(vertexPoint(nr,nc,TILE_W,TILE_H,originX).y + vertexPoint(nr+1,nc+1,TILE_W,TILE_H,originX).y)/2 };
-    const smaller = e.sign === '<' ? cA : cB;
-    // 垂直ベクトルの向きを「小さい方のセル中心」を指すように補正
-    if(pux*(smaller.x-mx) + puy*(smaller.y-my) < 0){ pux = -pux; puy = -puy; }
-
-    const D = 6; // 境界線上の後端2点、および尖端までの距離(同じ値にすると開き角が必ず90°)
-    const tip  = { x: mx + pux*D, y: my + puy*D };
-    const back1= { x: mx + eux*D, y: my + euy*D };
-    const back2= { x: mx - eux*D, y: my - euy*D };
-    const glyph = document.createElementNS(SVG_NS,'polyline');
-    glyph.setAttribute('class', 'cmp-glyph');
-    glyph.setAttribute('points', `${back1.x},${back1.y} ${tip.x},${tip.y} ${back2.x},${back2.y}`);
-    glyph.setAttribute('fill', 'none');
-    board.appendChild(glyph);
-  }
-
   {
     const bottomV = vertexPoint(N,N,TILE_W,TILE_H,originX);
     const text = document.createElementNS(SVG_NS,'text');

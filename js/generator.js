@@ -112,71 +112,7 @@ function buildAllLines(N, LEVELS){
   return lines;
 }
 
-// ---- 大小関係ヒント (隣接マスの＞/＜) ----
-// hints.comparisons[L] = [ {r,c,dir,sign}, ... ]
-//   dir:'R' -> 対象は(r,c+1) / dir:'D' -> 対象は(r+1,c)
-//   sign:'<' なら grid[L][r][c] < grid[L][隣]、'>' なら逆
-// 検索用に双方向インデックス化したものを findConfirmedPlacements に渡す。
-function buildComparisonIndex(comparisons, LEVELS){
-  const idx = {};
-  for(let L=1; L<=LEVELS; L++) idx[L] = new Map();
-  if(!comparisons) return idx;
-  const add = (L,r,c,nr,nc,op) => {
-    const k = `${r},${c}`;
-    if(!idx[L].has(k)) idx[L].set(k, []);
-    idx[L].get(k).push({ nr, nc, op });
-  };
-  for(const Lstr in comparisons){
-    const L = Number(Lstr);
-    if(!idx[L]) continue;
-    for(const e of comparisons[L]){
-      const [nr, nc] = e.dir === 'R' ? [e.r, e.c+1] : [e.r+1, e.c];
-      add(L, e.r, e.c, nr, nc, e.sign);
-      add(L, nr, nc, e.r, e.c, e.sign === '<' ? '>' : '<');
-    }
-  }
-  return idx;
-}
-
-// 正解データから矛盾しない大小関係ヒントをランダム生成する。
-// maxPerLevel: 1層あたりの生成本数上限(実際は隣接ペア総数までしか作れない)。
-// given: 指定時、両端とも固定マスのエッジは除外する(固定マス同士のヒントは無意味なため)。
-function generateComparisonHints(SOLUTION, N, LEVELS, maxPerLevel, given){
-  const comparisons = {};
-  for(let L=1; L<=LEVELS; L++){
-    const edges = [];
-    for(let r=0;r<N;r++){
-      for(let c=0;c<N;c++){
-        if(c+1<N) edges.push({ r, c, dir:'R' });
-        if(r+1<N) edges.push({ r, c, dir:'D' });
-      }
-    }
-    const usable = given ? edges.filter(e => {
-      const [nr,nc] = e.dir==='R' ? [e.r, e.c+1] : [e.r+1, e.c];
-      return !given[L][e.r][e.c] || !given[L][nr][nc];
-    }) : edges;
-    // 1マスに複数のヒントが重複して付くと冗長なため、セル単位で「使用済み」を
-    // 管理し、両端とも未使用のエッジだけを貪欲に採用する(各セルは最大1本まで)。
-    const usedCells = new Set();
-    const picked = [];
-    for(const e of shuffled(usable)){
-      if(picked.length >= maxPerLevel) break;
-      const [nr,nc] = e.dir==='R' ? [e.r, e.c+1] : [e.r+1, e.c];
-      const kA = `${e.r},${e.c}`, kB = `${nr},${nc}`;
-      if(usedCells.has(kA) || usedCells.has(kB)) continue;
-      usedCells.add(kA); usedCells.add(kB);
-      picked.push(e);
-    }
-    comparisons[L] = picked.map(e => {
-      const [nr,nc] = e.dir==='R' ? [e.r, e.c+1] : [e.r+1, e.c];
-      const sign = SOLUTION[L][e.r][e.c] < SOLUTION[L][nr][nc] ? '<' : '>';
-      return { r:e.r, c:e.c, dir:e.dir, sign };
-    });
-  }
-  return comparisons;
-}
-
-function findConfirmedPlacements(grid, given, playablePool, N, LEVELS, TARGET, include2Blank, comparisonIndex){
+function findConfirmedPlacements(grid, given, playablePool, N, LEVELS, TARGET, include2Blank){
   if(include2Blank === undefined) include2Blank = true;
   const allLines = buildAllLines(N, LEVELS);
   const cellKey = (L,r,c) => `${L},${r},${c}`;
@@ -215,42 +151,6 @@ function findConfirmedPlacements(grid, given, playablePool, N, LEVELS, TARGET, i
     return false;
   }
 
-  // 単一セルの大小関係チェック: 隣接マスが既に埋まっている場合のみ判定 (未確定なら制約なし)
-  function checkComparison(L, r, c, value){
-    if(!comparisonIndex) return true;
-    const entries = comparisonIndex[L] && comparisonIndex[L].get(`${r},${c}`);
-    if(!entries) return true;
-    for(const { nr, nc, op } of entries){
-      const nv = grid[L][nr][nc];
-      if(nv === null) continue;
-      if(op === '<' && !(value < nv)) return false;
-      if(op === '>' && !(value > nv)) return false;
-    }
-    return true;
-  }
-
-  // 2マス推理用: 仮に両方置いたと仮定し、a-b間の直接エッジも含めて検証する
-  function orderSatisfiesComparison(L, aCell, va, bCell, vb){
-    if(!comparisonIndex) return true;
-    const lookup = (nr, nc) => {
-      if(nr === aCell.r && nc === aCell.c) return va;
-      if(nr === bCell.r && nc === bCell.c) return vb;
-      return grid[L][nr][nc];
-    };
-    const checkCell = (cell, val) => {
-      const entries = comparisonIndex[L] && comparisonIndex[L].get(`${cell.r},${cell.c}`);
-      if(!entries) return true;
-      for(const { nr, nc, op } of entries){
-        const nv = lookup(nr, nc);
-        if(nv === null || nv === undefined) continue;
-        if(op === '<' && !(val < nv)) return false;
-        if(op === '>' && !(val > nv)) return false;
-      }
-      return true;
-    };
-    return checkCell(aCell, va) && checkCell(bCell, vb);
-  }
-
   const confirmed = []; // {L,r,c,value}
   for(const line of allLines){
     const vals = line.cells.map(({L,r,c})=>grid[L][r][c]);
@@ -262,7 +162,6 @@ function findConfirmedPlacements(grid, given, playablePool, N, LEVELS, TARGET, i
       const t = blanks[0];
       if(given[t.L][t.r][t.c]) continue;
       if(!isAvailable(needed)) continue;
-      if(!checkComparison(t.L, t.r, t.c, needed)) continue;
       confirmed.push({ L:t.L, r:t.r, c:t.c, value: needed });
       continue;
     }
@@ -285,10 +184,8 @@ function findConfirmedPlacements(grid, given, playablePool, N, LEVELS, TARGET, i
       }
       if(pairs.length !== 1) continue; // ambiguous or impossible -> not confirmable yet
       const [x,y] = pairs[0];
-      const order1ok = !wouldOvershoot(a.L,a.r,a.c,x,line.key) && !wouldOvershoot(b.L,b.r,b.c,y,line.key)
-                       && orderSatisfiesComparison(a.L, a, x, b, y);
-      const order2ok = !wouldOvershoot(a.L,a.r,a.c,y,line.key) && !wouldOvershoot(b.L,b.r,b.c,x,line.key)
-                       && orderSatisfiesComparison(a.L, a, y, b, x);
+      const order1ok = !wouldOvershoot(a.L,a.r,a.c,x,line.key) && !wouldOvershoot(b.L,b.r,b.c,y,line.key);
+      const order2ok = !wouldOvershoot(a.L,a.r,a.c,y,line.key) && !wouldOvershoot(b.L,b.r,b.c,x,line.key);
       if(order1ok && !order2ok){
         confirmed.push({ L:a.L, r:a.r, c:a.c, value:x });
         confirmed.push({ L:b.L, r:b.r, c:b.c, value:y });
@@ -298,27 +195,6 @@ function findConfirmedPlacements(grid, given, playablePool, N, LEVELS, TARGET, i
       }
       // if both orders are consistent (or neither is), the ordering is genuinely
       // ambiguous right now -- leave both cells blank rather than guess.
-    }
-  }
-  // 大小関係だけによる単セル確定: ラインの合計に関係なく、隣接する既埋まりマスとの
-  // 大小関係だけで候補プールが1つに絞れるセルを探す。
-  if(comparisonIndex){
-    for(let L=1; L<=LEVELS; L++){
-      for(let r=0;r<N;r++){
-        for(let c=0;c<N;c++){
-          if(given[L][r][c] || grid[L][r][c] !== null) continue;
-          const entries = comparisonIndex[L].get(`${r},${c}`);
-          if(!entries || !entries.some(e => grid[L][e.nr][e.nc] !== null)) continue;
-          const domain = [];
-          for(const v of playablePool){
-            if(!isAvailable(v)) continue;
-            if(checkComparison(L, r, c, v)) domain.push(v);
-          }
-          if(domain.length === 1){
-            confirmed.push({ L, r, c, value: domain[0] });
-          }
-        }
-      }
     }
   }
 
