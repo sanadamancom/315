@@ -91,10 +91,11 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
         return count;
       })()
     `);
-    check('固定117セルへline-health classが一切付かない', lockedWithHealth === 0);
+    check('固定セルへline-health classが一切付かない', lockedWithHealth === 0);
 
+    const repairCellCount = evalW('REPAIR_CELLS.length');
     const unlockedHealthCount = doc.querySelectorAll('.iso-cell.repair-unlocked.line-health-ok, .iso-cell.repair-unlocked.line-health-bad').length;
-    check('line-health classが付く可能性があるのは未確定8セルだけ', unlockedHealthCount > 0 && unlockedHealthCount <= 8);
+    check('line-health classが付く可能性があるのは未確定セル(REPAIR_CELLS件数分)だけ', unlockedHealthCount > 0 && unlockedHealthCount <= repairCellCount);
 
     // 固定セルの診断輪郭に赤緑strokeが実際に効いていないこと(class自体が無いので当然だが、
     // CSSルールが固定セルへ波及していないかも確認する)。
@@ -306,8 +307,9 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
     check('最後の交換直後にはoverlayがまだ表示されない', doc.getElementById('clearOverlay').classList.contains('hidden') === true);
     check('演出中はcelebrating状態になる', evalW('celebrating') === true);
     check('演出中は交換・Undo・Resetが無効', doc.getElementById('undoBtn').disabled === true && doc.getElementById('resetBtn').disabled === true);
-    check('演出中は固定117セルへ緑輪郭を追加しない', doc.querySelectorAll('.iso-cell.given.line-health-ok').length === 0);
-    check('未確定8セルが修復完了表示(repair-completed)へ移行している', doc.querySelectorAll('.iso-cell.repair-completed').length === 8);
+    check('演出中は固定セルへ緑輪郭を追加しない', doc.querySelectorAll('.iso-cell.given.line-health-ok').length === 0);
+    check('未確定セル全件が修復完了表示(repair-completed)へ移行している',
+      doc.querySelectorAll('.iso-cell.repair-completed').length === evalW('REPAIR_CELLS.length'));
 
     // 上段(slot-5,slot-4)→中央(slot-3)→下段(slot-2,slot-1)の順に発光classが付くことをポーリングで確認
     const order = [];
@@ -373,13 +375,14 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
     check('アニメーション中のReset試行は無視され、交換は正常に完了する', evalW('history.length') === 1);
   }
 
-  // ---- 10) Prototype02: 分散配置の描画・操作全般(座標・値はREPAIR_CELLSから動的取得) ----
+  // ---- 10) 分散配置の描画・操作全般(座標・値はREPAIR_CELLSから動的取得、Prototypeを問わない) ----
   {
     const { dom } = await loadPage();
     const { doc, evalW, click } = helpers(dom);
 
     const cellsInfo = JSON.parse(evalW(`JSON.stringify(REPAIR_CELLS.map(c=>({L:c.L,r:c.r,c:c.c})))`));
-    check('未確定セルが8件描画される', cellsInfo.length === 8);
+    const domUnlockedCount = doc.querySelectorAll('.iso-cell.repair-unlocked').length;
+    check('未確定セルがREPAIR_CELLSの定義数どおりに描画される', cellsInfo.length === domUnlockedCount);
 
     const allDomExist = cellsInfo.every(cc =>
       doc.querySelector(`.iso-cell[data-l="${cc.L}"][data-r="${cc.r}"][data-c="${cc.c}"]`) !== null
@@ -408,7 +411,7 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
     check('固定セルクリック後は観察対象の切り替えのみ(animatingにならない)', evalW('animating') === false);
   }
 
-  // ---- 11) Prototype02: 未確定セル2件の左クリック交換(可能ならLEVELをまたぐペア) ----
+  // ---- 11) 未確定セル2件の左クリック交換(可能ならLEVELをまたぐペア、Prototypeを問わない) ----
   {
     const { dom } = await loadPage();
     const { doc, evalW, click } = helpers(dom);
@@ -452,7 +455,7 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
         return JSON.stringify(repairState) === JSON.stringify(init);
       })()
     `);
-    check('ResetでPrototype 02の初期状態へ戻る', resetMatchesInitial === true);
+    check('Resetで初期状態へ戻る', resetMatchesInitial === true);
   }
 
   // ---- 12) 正誤リーク確認 ----

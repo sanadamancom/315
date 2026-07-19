@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "prototype": "repair-prototype-03",
+  "source": {
+    "seed": 20260719,
+    "maximumSamples": 10000,
+    "evaluatedSamples": 9984,
+    "selectionGateVersion": 1
+  },
+  "cells": [
+    {
+      "z": 0,
+      "y": 0,
+      "x": 0,
+      "initialValue": 121
+    },
+    {
+      "z": 0,
+      "y": 0,
+      "x": 4,
+      "initialValue": 86
+    },
+    {
+      "z": 0,
+      "y": 4,
+      "x": 0,
+      "initialValue": 101
+    },
+    {
+      "z": 0,
+      "y": 4,
+      "x": 4,
+      "initialValue": 36
+    },
+    {
+      "z": 2,
+      "y": 0,
+      "x": 0,
+      "initialValue": 47
+    },
+    {
+      "z": 2,
+      "y": 0,
+      "x": 4,
+      "initialValue": 79
+    },
+    {
+      "z": 2,
+      "y": 4,
+      "x": 0,
+      "initialValue": 67
+    },
+    {
+      "z": 2,
+      "y": 4,
+      "x": 4,
+      "initialValue": 90
+    },
+    {
+      "z": 4,
+      "y": 0,
+      "x": 0,
+      "initialValue": 5
+    },
+    {
+      "z": 4,
+      "y": 0,
+      "x": 4,
+      "initialValue": 59
+    },
+    {
+      "z": 4,
+      "y": 4,
+      "x": 0,
+      "initialValue": 25
+    },
+    {
+      "z": 4,
+      "y": 4,
+      "x": 4,
+      "initialValue": 40
+    }
+  ],
+  "metrics": {
+    "nonPositiveProgressStepCount": 0,
+    "finalStepGainShare": 0.2647058823529412,
+    "rootStrongCompatibleCount": 2,
+    "pathLength": 7,
+    "witnessStrongCompatibleSum": 16
+  }
+}

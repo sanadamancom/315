@@ -365,8 +365,12 @@ console.log('== --dry-runでは最終候補も書き込まない ==');
 }
 
 // =========================================================================
-// Major 3: candidate.jsonの由来・整合性検証(tests/repair-tests.jsから移管)
-// 300件探索の再実行は行わず、既存のcandidate.json・puzzle.jsを動的に読むだけ。
+// Major 3: candidate.jsonの自己整合性・Prototype 02 Search再生成整合性の検証
+// (tests/repair-tests.jsから移管)。
+// 現在のproduction(js/repair/puzzle.js)は比較対象にしない — 現在のcandidate-production
+// 一致検証はtests/prototype03-search-tests.js側の責務。
+// 記録されたsource条件(seed/samples/shortlist)でのPrototype 02 Search再生成は
+// このセクション内で1回だけ実行し、複数checkで使い回す(追加探索を増やさない)。
 // 座標・値はテストコードへ再転記しない。
 // =========================================================================
 console.log('== candidate.json: schema検証 ==');
@@ -399,32 +403,40 @@ console.log('== candidate.json: canonicalSha256の一致 ==');
   check('canonicalSha256が再計算値と一致する', recomputed === candidate.integrity.canonicalSha256);
 }
 
-console.log('== candidate.json ⇔ puzzle.js: 座標変換とinitialValueの完全一致 ==');
+console.log('== candidate.json: Prototype 02 Search再生成との整合性(現在のproductionは比較対象にしない) ==');
 {
+  // 現在のproduction(js/repair/puzzle.js)との一致検証はtests/prototype03-search-tests.js側の
+  // 責務であり、本ファイルでは扱わない。ここでは「保存されたPrototype 02候補が、記録された
+  // source条件(seed/samples/shortlist)でのPrototype 02 Search再生成結果と一致するか」だけを、
+  // 座標・値をテストコードへ再転記せずに検証する。
   const candidatePath = path.join(__dirname, '..', 'tools', 'repair', 'prototype02-candidate.json');
   const candidate = JSON.parse(fs.readFileSync(candidatePath, 'utf8'));
 
-  // puzzle.jsのREPAIR_CELLSは既存テストと同じvm方式で動的に読み込む(座標・値は再転記しない)。
-  const ctx = {};
-  vm.createContext(ctx);
-  const puzzleCode = fs.readFileSync(path.join(__dirname, '..', 'js', 'repair', 'puzzle.js'), 'utf8');
-  vm.runInContext(puzzleCode, ctx, { filename: 'puzzle.js' });
-  vm.runInContext('globalThis.REPAIR_CELLS = REPAIR_CELLS;', ctx);
-  const REPAIR_CELLS = ctx.REPAIR_CELLS;
+  check('保存済みPrototype 02 candidateのcellsが8件', Array.isArray(candidate.cells) && candidate.cells.length === 8);
 
-  check('REPAIR_CELLSが8件(puzzle.js側)', REPAIR_CELLS.length === 8);
+  // 記録されたsource条件でのSearch再生成は本ファイル内でこの1回だけ行い、以降の2件のcheckで
+  // 同じ結果を使い回す(追加探索は増やさない)。
+  const regenerated = S.runSearch({
+    seed: candidate.source.seed,
+    samples: candidate.source.samples,
+    shortlistSize: candidate.source.shortlist,
+  });
+  const regeneratedCanonical = regenerated.selectedCandidate ? S.buildCanonicalCandidateObject(regenerated) : null;
+  const regeneratedSha256 = regeneratedCanonical
+    ? crypto.createHash('sha256').update(JSON.stringify(regeneratedCanonical)).digest('hex')
+    : null;
 
-  // 座標変換: candidate.json(z,y,x) <-> puzzle.js(L,r,c) は L=z+1, r=y, c=x
-  const candidateKeySet = new Set(candidate.cells.map(c => `${c.z+1}-${c.y}-${c.x}-${c.initialValue}`));
-  const puzzleKeySet = new Set(REPAIR_CELLS.map(c => `${c.L}-${c.r}-${c.c}-${c.initialValue}`));
-  check('candidate.jsonとpuzzle.jsの座標・initialValueが完全一致(件数含む)',
-    candidateKeySet.size === 8 && puzzleKeySet.size === 8 &&
-    [...candidateKeySet].every(k => puzzleKeySet.has(k)));
+  check('保存済みcandidateが同seed・同条件のPrototype 02 Search再生成結果と一致する(canonicalSha256)',
+    regeneratedCanonical !== null && regeneratedSha256 === candidate.integrity.canonicalSha256);
 
-  const candidateCoordSet = new Set(candidate.cells.map(c => `${c.z+1}-${c.y}-${c.x}`));
-  const puzzleCoordSet = new Set(REPAIR_CELLS.map(c => `${c.L}-${c.r}-${c.c}`));
-  check('座標変換(z=L-1,y=r,x=c)だけでも一致する', candidateCoordSet.size === puzzleCoordSet.size &&
-    [...candidateCoordSet].every(k => puzzleCoordSet.has(k)));
+  const candidateCoordSet = new Set(candidate.cells.map(c => `${c.z}-${c.y}-${c.x}`));
+  const regeneratedCoordSet = new Set(
+    regeneratedCanonical ? regeneratedCanonical.cells.map(c => `${c.z}-${c.y}-${c.x}`) : []
+  );
+  check('candidateの座標schemaが再生成selected candidateの座標schemaと一致する',
+    regeneratedCanonical !== null &&
+    candidateCoordSet.size === regeneratedCoordSet.size &&
+    [...candidateCoordSet].every(k => regeneratedCoordSet.has(k)));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

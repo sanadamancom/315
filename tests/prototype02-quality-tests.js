@@ -14,22 +14,29 @@ function check(name, cond){
   else { fail++; console.log(`  FAIL - ${name}`); }
 }
 
-// production fixture: 現在のpuzzle.js(本番REPAIR_CELLS)をそのまま読み込む。
+// Prototype 02 fixture: production(js/repair/puzzle.js)のREPAIR_CELLSは他Prototypeの
+// 接続により内容が変わり得るため、本ファイルはそれに依存しない。代わりに保存済みの
+// Prototype 02候補(tools/repair/prototype02-candidate.json)からセル座標・initialValueを
+// 読み込み、correctValueはCUBE_DATAの対応位置(=候補選定時に固定された正解)から再構築する
+// (tests/prototype02-analyzer-tests.jsで採用済みの分離方式と同一)。
 // ここでは「例外なく完走する」「型・不変条件を満たす」ことだけを検証し、
-// 本番候補固有の正誤内訳・最短交換数・path数などの具体値はassertしない。
+// 本fixture固有の正誤内訳・最短交換数・path数などの具体値はassertしない。
 // exactな置換構造(3-cycle/4-cycle等)の検証は本ファイル後半のsynthetic fixtureで行う。
-function loadProductionCells(){
-  const ctx = {};
-  vm.createContext(ctx);
-  const code = fs.readFileSync(path.join(__dirname, '..', 'js/repair/puzzle.js'), 'utf8');
-  vm.runInContext(code, ctx, { filename: 'puzzle.js' });
-  vm.runInContext(`globalThis.REPAIR_CELLS = REPAIR_CELLS;`, ctx);
-  return ctx.REPAIR_CELLS.map(c => Object.assign({}, c));
+function loadPrototype02FixtureCells(){
+  const candidate = JSON.parse(fs.readFileSync(
+    path.join(__dirname, '..', 'tools/repair/prototype02-candidate.json'), 'utf8'
+  ));
+  const { CUBE_DATA } = A.loadCubeContext();
+  return candidate.cells.map(cell => ({
+    L: cell.z + 1, r: cell.y, c: cell.x,
+    correctValue: CUBE_DATA[cell.z][cell.y][cell.x],
+    initialValue: cell.initialValue,
+  }));
 }
 
-// synthetic fixture共通ヘルパー: 本番REPAIR_CELLSの座標・順序・initialValueに一切依存しない、
+// synthetic fixture共通ヘルパー: Prototype 02 fixtureの座標・順序・initialValueに一切依存しない、
 // 機械的に列挙した座標(グリッド先頭からn件)を使う。correctValueは実際のCUBE_DATAから取得する
-// (盤面・ライン計算が成立するために必要な実データであり、本番候補固有の値ではない)。
+// (盤面・ライン計算が成立するために必要な実データであり、fixture固有の値ではない)。
 function arbitraryCoords(n){
   const coords = [];
   findCoords: for(let L=1; L<=5; L++) for(let r=0; r<5; r++) for(let c=0; c<5; c++){
@@ -46,7 +53,7 @@ function buildSyntheticCells(CUBE_DATA, n){
 }
 
 const { CUBE_DATA, lines } = A.loadCubeContext();
-const productionCells = loadProductionCells();
+const productionCells = loadPrototype02FixtureCells();
 
 console.log('== optimal path探索: production fixture(不変条件のみ、具体値はassertしない) ==');
 {

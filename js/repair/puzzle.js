@@ -1,23 +1,28 @@
 // puzzle.js — 修復型プロトタイプの「静的な1問」を定義する。
 // 出題生成は行わない。座標・初期破損状態はすべてコード上に固定。
 //
-// Prototype 02: tools/repair/prototype02-candidate.json(seed/samples/gate情報を含む)から
-// 選定した8セル候補を採用。座標は分散配置(隣接・2x2x2ブロックへの限定なし)。
-// hard filter(座標・値の妥当性、正しい位置2以上、誤配置3LEVEL以上、最短交換数4以上)、
-// provisional gate(↑↓両存在、階層内外異常両存在、方向的根拠等)、複合推理gate(交差戦略の
-// 単純解を防ぐ条件)をすべて満たし、8!(40320通り)全探索で一意解であることを確認済み。
-// 検証手順は tools/repair/prototype02-analyzer.js・prototype02-quality.js・
-// search-prototype02.js、および候補データ自体は tools/repair/prototype02-candidate.json を参照。
+// Prototype 03: tools/repair/prototype03-candidate.json(seed/samples/gate情報を含む)から
+// 選定した12セル候補を採用。座標は中心対称な軸部分集合(サイズ2または3)の2×2×3直積構造。
+// 構造gate(未確定セル数12、未確定1件ラインが0本、直接引き算で確定不能、正しい位置1件以上、
+// 誤配置複数LEVEL分散、↑↓両存在、階層内外異常両存在)、human_visible gate(strong compatible
+// swapだけを辿るstaged pathが存在し、rootのstrong compatible数が1〜3、交換手数が7または8)、
+// validation gate(制約付きbacktrackingで一意解)をすべて満たすことを確認済み。
+// 検証手順は tools/repair/prototype02-analyzer.js・search-prototype03.js、候補データ自体は
+// tools/repair/prototype03-candidate.json を参照。
 
 const REPAIR_CELLS = [
-  { L:1, r:2, c:0, correctValue:42,  initialValue:108 },
-  { L:3, r:2, c:2, correctValue:63,  initialValue:63  },
-  { L:4, r:2, c:4, correctValue:96,  initialValue:56  },
-  { L:4, r:3, c:4, correctValue:74,  initialValue:74  },
-  { L:4, r:4, c:0, correctValue:56,  initialValue:96  },
-  { L:5, r:0, c:1, correctValue:108, initialValue:122 },
-  { L:5, r:1, c:2, correctValue:122, initialValue:46  },
-  { L:5, r:4, c:2, correctValue:46,  initialValue:42  },
+  { L:1, r:0, c:0, correctValue:25, initialValue:121 },
+  { L:1, r:0, c:4, correctValue:90, initialValue:86 },
+  { L:1, r:4, c:0, correctValue:67, initialValue:101 },
+  { L:1, r:4, c:4, correctValue:5, initialValue:36 },
+  { L:3, r:0, c:0, correctValue:47, initialValue:47 },
+  { L:3, r:0, c:4, correctValue:86, initialValue:79 },
+  { L:3, r:4, c:0, correctValue:40, initialValue:67 },
+  { L:3, r:4, c:4, correctValue:79, initialValue:90 },
+  { L:5, r:0, c:0, correctValue:121, initialValue:5 },
+  { L:5, r:0, c:4, correctValue:59, initialValue:59 },
+  { L:5, r:4, c:0, correctValue:36, initialValue:25 },
+  { L:5, r:4, c:4, correctValue:101, initialValue:40 },
 ];
 
 function repairCellKey(L,r,c){ return `${L}-${r}-${c}`; }
@@ -31,7 +36,7 @@ function repairCellDef(L,r,c){
 }
 
 // 現在の盤面値を返す: locked=CUBE_DATAの値(常に正解)、unlocked=渡されたstateの値。
-// state: { [key]: currentValue } (repairCellKeyをキーとする、8エントリ)
+// state: { [key]: currentValue } (repairCellKeyをキーとする、12エントリ)
 function repairGridValue(state, L, r, c){
   const def = repairCellDef(L,r,c);
   if(def) return state[repairCellKey(L,r,c)];
