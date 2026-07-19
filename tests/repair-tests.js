@@ -1,5 +1,8 @@
 // tests/repair-tests.js — 修復型パズル(js/repair/*)のロジック検証。
 // DOM非依存の部分(cube-data / lines109 / puzzle / measure)だけを対象にする。
+// puzzle.jsのREPAIR_CELLS内容(座標・初期値)には依存しない汎用的な検証のみを行う。
+// tools/repair(候補選定用の開発ツール群)への実行時依存は持たない。
+// candidate.jsonとの由来・整合性検証はtests/prototype02-search-tests.js側で行う。
 // 実行: node tests/repair-tests.js
 'use strict';
 const fs = require('fs');
@@ -68,25 +71,52 @@ console.log('== cube-data / lines109 ==');
 console.log('== puzzle (static repair definition) ==');
 {
   const REPAIR_CELLS = ctx.REPAIR_CELLS;
-  check('未確定領域が2x2x2の8セル', REPAIR_CELLS.length === 8);
-  const zs = new Set(REPAIR_CELLS.map(c=>c.L)), ys = new Set(REPAIR_CELLS.map(c=>c.r)), xs = new Set(REPAIR_CELLS.map(c=>c.c));
-  check('8セルが2x2x2の座標範囲に収まる', zs.size===2 && ys.size===2 && xs.size===2);
+  check('REPAIR_CELLSが8件', REPAIR_CELLS.length === 8);
+
+  const coordKeySet = new Set(REPAIR_CELLS.map(c => `${c.L}-${c.r}-${c.c}`));
+  const coordsInRange = REPAIR_CELLS.every(c =>
+    Number.isInteger(c.L) && c.L>=1 && c.L<=5 &&
+    Number.isInteger(c.r) && c.r>=0 && c.r<5 &&
+    Number.isInteger(c.c) && c.c>=0 && c.c<5
+  );
+  check('全座標が範囲内かつ重複なし', coordsInRange && coordKeySet.size === REPAIR_CELLS.length);
 
   const initState = ctx.createInitialRepairState();
-  const correctCount = REPAIR_CELLS.filter(c => initState[ctx.repairCellKey(c.L,c.r,c.c)] === c.correctValue).length;
-  const wrongCount = REPAIR_CELLS.length - correctCount;
-  check('初期状態で正しい未確定4セル・誤配置4セル', correctCount===4 && wrongCount===4);
+  const CORRECT_THRESHOLD = 2, LEVEL_THRESHOLD = 3;
+  const correctCells = REPAIR_CELLS.filter(c => initState[ctx.repairCellKey(c.L,c.r,c.c)] === c.correctValue);
+  const misplacedCells = REPAIR_CELLS.filter(c => initState[ctx.repairCellKey(c.L,c.r,c.c)] !== c.correctValue);
+  check('正しい位置の未確定セルが基準数以上', correctCells.length >= CORRECT_THRESHOLD);
+  const misplacedLevels = new Set(misplacedCells.map(c => c.L));
+  check('誤配置が3LEVEL以上に分散', misplacedLevels.size >= LEVEL_THRESHOLD);
+
+  // 未確定セルの初期値集合が、その位置の正解値集合と一致すること(順列であること)。
+  const correctValueMultiset = REPAIR_CELLS.map(c=>c.correctValue).slice().sort((a,b)=>a-b);
+  const initialValueMultiset = REPAIR_CELLS.map(c=>initState[ctx.repairCellKey(c.L,c.r,c.c)]).slice().sort((a,b)=>a-b);
+  check('未確定セルの初期値集合が正解値集合と一致', correctValueMultiset.length===initialValueMultiset.length &&
+    correctValueMultiset.every((v,i)=>v===initialValueMultiset[i]));
+
+  // 固定117セルはCUBE_DATAと一致すること(repairGridValueのlocked分岐を経由して確認)。
+  let fixedMismatch = 0, fixedCount = 0;
+  for(let L=1;L<=5;L++) for(let r=0;r<5;r++) for(let c=0;c<5;c++){
+    if(ctx.isRepairUnlocked(L,r,c)) continue;
+    fixedCount++;
+    if(ctx.repairGridValue(initState, L, r, c) !== ctx.CUBE_DATA[L-1][r][c]) fixedMismatch++;
+  }
+  check('固定117セルがCUBE_DATAと一致', fixedCount===117 && fixedMismatch===0);
 
   // 初期破損状態でも1〜125が各1回であること(盤面全体で確認)
   const flatInit = [];
   for(let L=1;L<=5;L++) for(let r=0;r<5;r++) for(let c=0;c<5;c++) flatInit.push(ctx.repairGridValue(initState, L, r, c));
   check('初期破損状態でも1〜125が各1回', flatInit.length===125 && new Set(flatInit).size===125);
 
-  // 固定セルは交換できない
-  const lockedA = { L:1, r:0, c:0 }; // 明らかに8セル範囲外
+  // 固定セルは交換できない(REPAIR_CELLSに含まれない座標を動的に1つ選ぶ)
+  let lockedA = null;
+  outer: for(let L=1;L<=5;L++) for(let r=0;r<5;r++) for(let c=0;c<5;c++){
+    if(!ctx.isRepairUnlocked(L,r,c)){ lockedA = { L, r, c }; break outer; }
+  }
   const unlockedA = { L:REPAIR_CELLS[0].L, r:REPAIR_CELLS[0].r, c:REPAIR_CELLS[0].c };
   const afterLockedSwap = ctx.swapRepairCells(initState, lockedA, unlockedA);
-  check('固定セルを交換できない(状態が変化しない)', JSON.stringify(afterLockedSwap) === JSON.stringify(initState));
+  check('固定セルを交換できない(状態が変化しない)', lockedA !== null && JSON.stringify(afterLockedSwap) === JSON.stringify(initState));
 
   // 未確定セル同士は交換できる
   const b = { L:REPAIR_CELLS[1].L, r:REPAIR_CELLS[1].r, c:REPAIR_CELLS[1].c };
@@ -114,6 +144,7 @@ console.log('== puzzle (static repair definition) ==');
   const origValues = REPAIR_CELLS.map(c=>c.correctValue);
   const idxPerms = permutations([0,1,2,3,4,5,6,7]);
   let solCount = 0;
+  let solutionMatchesCubeData = null;
   for(const perm of idxPerms){
     const trial = {};
     REPAIR_CELLS.forEach((cell,i)=>{ trial[ctx.repairCellKey(cell.L,cell.r,cell.c)] = origValues[perm[i]]; });
@@ -125,9 +156,15 @@ console.log('== puzzle (static repair definition) ==');
       }
       if(sum !== 315){ ok = false; break; }
     }
-    if(ok) solCount++;
+    if(ok){
+      solCount++;
+      solutionMatchesCubeData = REPAIR_CELLS.every(cell =>
+        trial[ctx.repairCellKey(cell.L,cell.r,cell.c)] === ctx.CUBE_DATA[cell.L-1][cell.r][cell.c]
+      );
+    }
   }
   check('8!全順列で完全修復配置が1通り', solCount === 1);
+  check('一意配置の未確定セルがCUBE_DATAと一致', solutionMatchesCubeData === true);
 }
 
 console.log('== measure ==');
@@ -144,16 +181,22 @@ console.log('== measure ==');
   }
   check('正解状態では全ラインが＝', eqCount === lines.length);
 
+  let intraAbnormal=0, crossAbnormal=0;
   for(const line of lines){
     const r = ctx.measureLine(initState, line);
     if(r==='↑') overCount++;
     if(r==='↓') underCount++;
+    if(r!=='='){
+      const zs = new Set(line.cells.map(cell=>cell.z));
+      if(zs.size===1) intraAbnormal++; else crossAbnormal++;
+    }
   }
   check('測定結果が正常・過剰・不足で正しい(初期破損状態に↑/↓が両方存在)', overCount>0 && underCount>0);
+  check('階層内と階層横断の不成立ラインが両方存在', intraAbnormal>0 && crossAbnormal>0);
 
   // 交換の影響ラインだけ測定結果が無効化される、という仕様は main側(Map管理)のロジックなので
   // ここでは「影響を受けるラインの集合」が正しく特定できることだけを検証する。
-  const affectedCell = ctx.REPAIR_CELLS[4]; // L3のセルのひとつ
+  const affectedCell = ctx.REPAIR_CELLS[4]; // 未確定8セルのうちの1つ(座標は問わない)
   const touching = ctx.linesThroughCell(lines, affectedCell.L, affectedCell.r, affectedCell.c);
   check('交換の影響ラインを正しく特定できる', touching.length > 0 && touching.every(l =>
     l.cells.some(c => c.z===affectedCell.L-1 && c.y===affectedCell.r && c.x===affectedCell.c)

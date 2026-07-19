@@ -212,7 +212,8 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
     check('初期表示が正しいx / 109', doc.getElementById('solvedLineCount').textContent === String(expectInit));
     check('盤面内・LEVEL表示に成立ライン総数が重複していない', doc.querySelector('.board-area').textContent.includes(`${expectInit} / 109`) === false);
 
-    await evalW(`triggerSwap({L:3,r:1,c:1},{L:3,r:2,c:2})`);
+    // REPAIR_CELLSから実際に未確定な2セルを動的に取得して交換する(座標・値をハードコードしない)。
+    await evalW(`triggerSwap(REPAIR_CELLS[0], REPAIR_CELLS[1])`);
     const expectAfter = evalW(`ALL_LINES.filter(l => measureLine(repairState,l)==='=').length`);
     check('交換完了後に更新される', doc.getElementById('solvedLineCount').textContent === String(expectAfter));
 
@@ -267,8 +268,9 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
   {
     const { dom, errors } = await loadPage();
     const { doc, evalW, click } = helpers(dom);
-    click(3,1,1);
-    click(3,1,2); // アニメーション開始(fire-and-forget)
+    const cellsInfo = JSON.parse(evalW(`JSON.stringify(REPAIR_CELLS.map(c=>({L:c.L,r:c.r,c:c.c})))`));
+    click(cellsInfo[0].L, cellsInfo[0].r, cellsInfo[0].c);
+    click(cellsInfo[1].L, cellsInfo[1].r, cellsInfo[1].c); // アニメーション開始(fire-and-forget)
     const ghosts = doc.querySelectorAll('.swap-ghost');
     check('2つの菱形タイル面ゴーストが生成される', ghosts.length === 2);
     const opacities = [...ghosts].map(g => parseFloat(g.querySelector('.cube-face').getAttribute('fill-opacity')));
@@ -283,11 +285,22 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
     const { dom, errors } = await loadPage();
     const { doc, evalW } = helpers(dom);
 
-    await evalW(`triggerSwap({L:3,r:1,c:1},{L:3,r:2,c:2})`);
-    await evalW(`triggerSwap({L:3,r:1,c:2},{L:3,r:2,c:1})`);
+    // 実際の解法手順は再転記せず、REPAIR_CELLSから動的に「あと1手で全セル正解になる状態」を
+    // 直接構築してから、その最後の1手だけをtriggerSwap経由で実行する(交換終了検知・クリア演出の
+    // 検証が目的であり、最短交換経路の検証ではない)。
+    await evalW(`
+      (function(){
+        const state = {};
+        for(const cell of REPAIR_CELLS) state[repairCellKey(cell.L,cell.r,cell.c)] = cell.correctValue;
+        const a = REPAIR_CELLS[0], b = REPAIR_CELLS[1];
+        const ka = repairCellKey(a.L,a.r,a.c), kb = repairCellKey(b.L,b.r,b.c);
+        const tmp = state[ka]; state[ka] = state[kb]; state[kb] = tmp; // 2セルだけ意図的にずらす
+        repairState = state;
+      })()
+    `);
 
     // 最後の交換(fire-and-forget)を発火し、直後の状態を確認する
-    evalW(`triggerSwap({L:3,r:1,c:2},{L:3,r:2,c:2})`);
+    evalW(`triggerSwap(REPAIR_CELLS[0], REPAIR_CELLS[1])`);
     await new Promise(r=>setTimeout(r, evalW('SWAP_ANIM_MS') + 40)); // タイル移動完了直後
 
     check('最後の交換直後にはoverlayがまだ表示されない', doc.getElementById('clearOverlay').classList.contains('hidden') === true);
@@ -325,10 +338,20 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
     const { dom } = await loadPage();
     const { w, evalW } = helpers(dom);
     setReducedMotion(w);
-    await evalW(`triggerSwap({L:3,r:1,c:1},{L:3,r:2,c:2})`);
-    await evalW(`triggerSwap({L:3,r:1,c:2},{L:3,r:2,c:1})`);
+
+    await evalW(`
+      (function(){
+        const state = {};
+        for(const cell of REPAIR_CELLS) state[repairCellKey(cell.L,cell.r,cell.c)] = cell.correctValue;
+        const a = REPAIR_CELLS[0], b = REPAIR_CELLS[1];
+        const ka = repairCellKey(a.L,a.r,a.c), kb = repairCellKey(b.L,b.r,b.c);
+        const tmp = state[ka]; state[ka] = state[kb]; state[kb] = tmp;
+        repairState = state;
+      })()
+    `);
+
     const t0 = Date.now();
-    await evalW(`triggerSwap({L:3,r:1,c:2},{L:3,r:2,c:2})`);
+    await evalW(`triggerSwap(REPAIR_CELLS[0], REPAIR_CELLS[1])`);
     // triggerSwapのPromiseはタイル移動完了までしか待たないため、celebrating完了は別途ポーリングする
     let cleared = false;
     for(let i=0;i<30 && !cleared;i++){
@@ -344,13 +367,95 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
   {
     const { dom } = await loadPage();
     const { evalW } = helpers(dom);
-    evalW(`triggerSwap({L:3,r:1,c:1},{L:3,r:1,c:2})`); // fire-and-forget
+    evalW(`triggerSwap(REPAIR_CELLS[0], REPAIR_CELLS[1])`); // fire-and-forget
     evalW('resetPuzzle()'); // animating中なのでガードでreturnするはず
     await new Promise(r=>setTimeout(r, evalW('SWAP_ANIM_MS') + 150));
     check('アニメーション中のReset試行は無視され、交換は正常に完了する', evalW('history.length') === 1);
   }
 
-  // ---- 10) 正誤リーク確認 ----
+  // ---- 10) Prototype02: 分散配置の描画・操作全般(座標・値はREPAIR_CELLSから動的取得) ----
+  {
+    const { dom } = await loadPage();
+    const { doc, evalW, click } = helpers(dom);
+
+    const cellsInfo = JSON.parse(evalW(`JSON.stringify(REPAIR_CELLS.map(c=>({L:c.L,r:c.r,c:c.c})))`));
+    check('未確定セルが8件描画される', cellsInfo.length === 8);
+
+    const allDomExist = cellsInfo.every(cc =>
+      doc.querySelector(`.iso-cell[data-l="${cc.L}"][data-r="${cc.r}"][data-c="${cc.c}"]`) !== null
+    );
+    check('REPAIR_CELLSの全座標に操作対象DOMが存在する', allDomExist);
+
+    const allUnlockedClass = cellsInfo.every(cc =>
+      doc.querySelector(`.iso-cell[data-l="${cc.L}"][data-r="${cc.r}"][data-c="${cc.c}"]`).classList.contains('repair-unlocked')
+    );
+    check('未確定セルのDOMがrepair-unlockedクラスを持つ', allUnlockedClass);
+
+    const levelSet = new Set(cellsInfo.map(cc => cc.L));
+    check('未確定セルが複数LEVELへ分散して描画される', levelSet.size >= 2);
+
+    // 固定セルは選択・交換できない: REPAIR_CELLSに含まれない座標を動的に1つ探す
+    let lockedCoord = null;
+    findLocked: for(let L=1; L<=5; L++) for(let r=0; r<5; r++) for(let c=0; c<5; c++){
+      if(!cellsInfo.some(cc => cc.L===L && cc.r===r && cc.c===c)){ lockedCoord = { L, r, c }; break findLocked; }
+    }
+    const stateBeforeLockedAttempt = evalW('JSON.stringify(repairState)');
+    click(lockedCoord.L, lockedCoord.r, lockedCoord.c);
+    click(cellsInfo[0].L, cellsInfo[0].r, cellsInfo[0].c);
+    const stateAfterLockedAttempt = evalW('JSON.stringify(repairState)');
+    check('固定セルは選択・交換できない(固定セル選択後の未確定セルクリックで交換が起きない)',
+      stateBeforeLockedAttempt === stateAfterLockedAttempt);
+    check('固定セルクリック後は観察対象の切り替えのみ(animatingにならない)', evalW('animating') === false);
+  }
+
+  // ---- 11) Prototype02: 未確定セル2件の左クリック交換(可能ならLEVELをまたぐペア) ----
+  {
+    const { dom } = await loadPage();
+    const { doc, evalW, click } = helpers(dom);
+
+    const cellsInfo = JSON.parse(evalW(`JSON.stringify(REPAIR_CELLS.map(c=>({L:c.L,r:c.r,c:c.c})))`));
+    const a = cellsInfo[0];
+    const crossLevelB = cellsInfo.find(cc => cc.L !== a.L);
+    const b = crossLevelB || cellsInfo[1];
+    const pairLabel = crossLevelB ? 'LEVELをまたぐペア' : '同一LEVEL内のペア';
+
+    const beforeA = evalW(`repairGridValue(repairState, ${a.L}, ${a.r}, ${a.c})`);
+    const beforeB = evalW(`repairGridValue(repairState, ${b.L}, ${b.r}, ${b.c})`);
+
+    click(a.L, a.r, a.c);
+    click(b.L, b.r, b.c); // triggerSwap fire-and-forget
+
+    check('交換アニメーション中は操作がロックされる', evalW('animating') === true);
+    check('交換アニメーション中はUndo/Resetボタンが無効', doc.getElementById('undoBtn').disabled === true && doc.getElementById('resetBtn').disabled === true);
+
+    await new Promise(r=>setTimeout(r, evalW('SWAP_ANIM_MS') + 150));
+
+    check('交換終了後にロックが解除される', evalW('animating') === false);
+    check('交換終了後に選択状態が解除される', evalW('selectedCell') === null);
+
+    const afterA = evalW(`repairGridValue(repairState, ${a.L}, ${a.r}, ${a.c})`);
+    const afterB = evalW(`repairGridValue(repairState, ${b.L}, ${b.r}, ${b.c})`);
+    check(`未確定セル2件(${pairLabel})を左クリックで交換できる(値が入れ替わる)`, afterA === beforeB && afterB === beforeA);
+
+    const expectAfterSwap = evalW(`ALL_LINES.filter(l => measureLine(repairState,l)==='=').length`);
+    check('診断表示と成立ライン数が交換後に更新される', doc.getElementById('solvedLineCount').textContent === String(expectAfterSwap));
+
+    await evalW('undoSwap()');
+    const afterUndoA = evalW(`repairGridValue(repairState, ${a.L}, ${a.r}, ${a.c})`);
+    const afterUndoB = evalW(`repairGridValue(repairState, ${b.L}, ${b.r}, ${b.c})`);
+    check('Undoで交換前の状態へ戻る', afterUndoA === beforeA && afterUndoB === beforeB);
+
+    evalW('resetPuzzle()');
+    const resetMatchesInitial = evalW(`
+      (function(){
+        const init = createInitialRepairState();
+        return JSON.stringify(repairState) === JSON.stringify(init);
+      })()
+    `);
+    check('ResetでPrototype 02の初期状態へ戻る', resetMatchesInitial === true);
+  }
+
+  // ---- 12) 正誤リーク確認 ----
   {
     const { dom } = await loadPage();
     const { doc } = helpers(dom);

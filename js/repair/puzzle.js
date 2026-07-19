@@ -1,25 +1,23 @@
 // puzzle.js — 修復型プロトタイプの「静的な1問」を定義する。
 // 出題生成は行わない。座標・初期破損状態はすべてコード上に固定。
 //
-// 選定領域: 2x2x2ブロック (z=1..2, y=1..2, x=1..2) = ゲーム座標で L2-L3, r1-2, c1-2。
-// 選定理由: この領域は空間対角線4本すべて・xz/yz(縦断面)対角線8本を含む28本のラインに
-// 関与し、8!(40320通り)の全探索で「全109ラインが315に戻る配置は元の並び(恒等置換)の
-// 1通りだけ」であることを確認済み(検証はtests/repair-tests.jsに実装)。
-//
-// 初期破損: L3層(z=2)の4マスだけを 4→5→6→7→4 の巡回でシャッフル。L2層(z=1)の4マスは
-// 最初から正解(correct_unlocked_cells=4)。
+// Prototype 02: tools/repair/prototype02-candidate.json(seed/samples/gate情報を含む)から
+// 選定した8セル候補を採用。座標は分散配置(隣接・2x2x2ブロックへの限定なし)。
+// hard filter(座標・値の妥当性、正しい位置2以上、誤配置3LEVEL以上、最短交換数4以上)、
+// provisional gate(↑↓両存在、階層内外異常両存在、方向的根拠等)、複合推理gate(交差戦略の
+// 単純解を防ぐ条件)をすべて満たし、8!(40320通り)全探索で一意解であることを確認済み。
+// 検証手順は tools/repair/prototype02-analyzer.js・prototype02-quality.js・
+// search-prototype02.js、および候補データ自体は tools/repair/prototype02-candidate.json を参照。
 
 const REPAIR_CELLS = [
-  // idx0-3: L2層 (z=1) — 初期状態から正解
-  { L:2, r:1, c:1, correctValue:64,  initialValue:64  },
-  { L:2, r:1, c:2, correctValue:117, initialValue:117 },
-  { L:2, r:2, c:1, correctValue:118, initialValue:118 },
-  { L:2, r:2, c:2, correctValue:21,  initialValue:21  },
-  // idx4-7: L3層 (z=2) — 4-cycle破損 (4→5→6→7→4)
-  { L:3, r:1, c:1, correctValue:43,  initialValue:38  },
-  { L:3, r:1, c:2, correctValue:38,  initialValue:68  },
-  { L:3, r:2, c:1, correctValue:68,  initialValue:63  },
-  { L:3, r:2, c:2, correctValue:63,  initialValue:43  },
+  { L:1, r:2, c:0, correctValue:42,  initialValue:108 },
+  { L:3, r:2, c:2, correctValue:63,  initialValue:63  },
+  { L:4, r:2, c:4, correctValue:96,  initialValue:56  },
+  { L:4, r:3, c:4, correctValue:74,  initialValue:74  },
+  { L:4, r:4, c:0, correctValue:56,  initialValue:96  },
+  { L:5, r:0, c:1, correctValue:108, initialValue:122 },
+  { L:5, r:1, c:2, correctValue:122, initialValue:46  },
+  { L:5, r:4, c:2, correctValue:46,  initialValue:42  },
 ];
 
 function repairCellKey(L,r,c){ return `${L}-${r}-${c}`; }

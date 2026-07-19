@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "prototype": "repair-prototype-02",
+  "source": {
+    "seed": 20260719,
+    "samples": 300,
+    "shortlist": 20,
+    "selectionGateVersion": 1
+  },
+  "cells": [
+    {
+      "z": 0,
+      "y": 2,
+      "x": 0,
+      "initialValue": 108
+    },
+    {
+      "z": 2,
+      "y": 2,
+      "x": 2,
+      "initialValue": 63
+    },
+    {
+      "z": 3,
+      "y": 2,
+      "x": 4,
+      "initialValue": 56
+    },
+    {
+      "z": 3,
+      "y": 3,
+      "x": 4,
+      "initialValue": 74
+    },
+    {
+      "z": 3,
+      "y": 4,
+      "x": 0,
+      "initialValue": 96
+    },
+    {
+      "z": 4,
+      "y": 0,
+      "x": 1,
+      "initialValue": 122
+    },
+    {
+      "z": 4,
+      "y": 1,
+      "x": 2,
+      "initialValue": 46
+    },
+    {
+      "z": 4,
+      "y": 4,
+      "x": 2,
+      "initialValue": 42
+    }
+  ],
+  "integrity": {
+    "canonicalSha256": "8f0c13124be5f2c62181c67e2a6d47532ecb1704d21612343f71f5761a1c5689"
+  }
+}
