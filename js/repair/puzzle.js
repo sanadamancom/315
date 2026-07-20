@@ -23,6 +23,32 @@ const REPAIR_CELLS = [
   { L:5, r:4, c:4, correctValue:101, initialValue:25 },
 ];
 
+// Prototype 05: 固定セル(REPAIR_CELLSに含まれない113セル)のうち、数字を表示する15セル。
+// 選定は tools/repair 側のread-onlyなgeometry probe(座標・109ライン所属のみ使用、
+// 数字・正誤・正解交換・witnessPathは不使用)による決定論的な制約充足解(Variant C)。
+// 各LEVEL 3個、LEVEL内でrow/column非重複、各LEVELで最低1個は未確定セルを含む
+// active lineに所属、各active lineでrevealed-fixedは最大1・sealed-fixedは最低2を維持。
+const REVEALED_FIXED_CELLS = [
+  { L:1, r:0, c:1 }, { L:1, r:2, c:3 }, { L:1, r:4, c:2 },
+  { L:2, r:0, c:2 }, { L:2, r:1, c:4 }, { L:2, r:2, c:1 },
+  { L:3, r:0, c:2 }, { L:3, r:1, c:4 }, { L:3, r:2, c:0 },
+  { L:4, r:0, c:2 }, { L:4, r:1, c:1 }, { L:4, r:3, c:3 },
+  { L:5, r:0, c:3 }, { L:5, r:1, c:1 }, { L:5, r:3, c:2 },
+];
+
+function isRevealedFixed(L,r,c){
+  return REVEALED_FIXED_CELLS.some(cell => cell.L===L && cell.r===r && cell.c===c);
+}
+
+// セルの表示状態を返す純粋query: 'movable' | 'revealed-fixed' | 'sealed-fixed'。
+// renderBoard(repair-main.js)がこの状態を数字表示・鍵穴表示へ接続する。
+// このquery自体はDOM非依存。既存のisRepairUnlocked等の意味は変更しない。
+function cellPresentationState(L,r,c){
+  if(isRepairUnlocked(L,r,c)) return 'movable';
+  if(isRevealedFixed(L,r,c)) return 'revealed-fixed';
+  return 'sealed-fixed';
+}
+
 function repairCellKey(L,r,c){ return `${L}-${r}-${c}`; }
 
 function isRepairUnlocked(L,r,c){

@@ -253,6 +253,40 @@ function cellGroupEl(L,r,c){
   return document.querySelector(`.iso-cell[data-l="${L}"][data-r="${r}"][data-c="${c}"]`);
 }
 
+// sealed-fixedセルへ小さな単色鍵穴(円+くさび形)を1回だけ追加する。数字や内部値は一切持たせない。
+// 既に存在する場合は何もしない(renderAll/Reset/交換で連続呼び出しされても増殖しない)。
+function ensureSealedKeyhole(g, labelEl){
+  if(g.querySelector('.cell-keyhole')) return;
+  if(!labelEl) return;
+  const cx = parseFloat(labelEl.getAttribute('x'));
+  const cy = parseFloat(labelEl.getAttribute('y'));
+  if(Number.isNaN(cx) || Number.isNaN(cy)) return;
+
+  const kh = document.createElementNS('http://www.w3.org/2000/svg','g');
+  kh.setAttribute('class','cell-keyhole');
+  kh.setAttribute('pointer-events','none');
+  kh.setAttribute('aria-hidden','true');
+
+  const hole = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  const holeR = 2.6, holeCy = cy - 2.4;
+  hole.setAttribute('cx', cx);
+  hole.setAttribute('cy', holeCy);
+  hole.setAttribute('r', holeR);
+  kh.appendChild(hole);
+
+  const stemTopY = holeCy + holeR * 0.55, stemBottomY = cy + 6.5;
+  const stemTopHalfW = 1.5, stemBottomHalfW = 3.2;
+  const stem = document.createElementNS('http://www.w3.org/2000/svg','path');
+  stem.setAttribute('d',
+    `M ${cx - stemTopHalfW} ${stemTopY} `+
+    `L ${cx + stemTopHalfW} ${stemTopY} `+
+    `L ${cx + stemBottomHalfW} ${stemBottomY} `+
+    `L ${cx - stemBottomHalfW} ${stemBottomY} Z`);
+  kh.appendChild(stem);
+
+  g.appendChild(kh);
+}
+
 function makeTileGhost(faceEl, labelEl, value, rect){
   const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
   svg.setAttribute('class','swap-ghost');
@@ -388,14 +422,23 @@ function renderBoard(lineStatuses, cellHealth){
         const key = cellDomKey(L,r,c);
         g.dataset.key = key;
 
-        const unlocked = isRepairUnlocked(L,r,c);
+        const state = cellPresentationState(L,r,c); // 'movable' | 'revealed-fixed' | 'sealed-fixed'
+        const unlocked = state === 'movable';
         const value = repairGridValue(repairState, L, r, c);
         const label = g.querySelector('.cube-label');
-        if(label) label.textContent = unlocked ? value : '';
+        if(label) label.textContent = state === 'sealed-fixed' ? '' : value;
+
+        if(state === 'sealed-fixed'){
+          ensureSealedKeyhole(g, label);
+        } else {
+          const existingKeyhole = g.querySelector('.cell-keyhole');
+          if(existingKeyhole) existingKeyhole.remove();
+        }
 
         g.classList.remove('empty');
         g.classList.toggle('given', !unlocked);
         g.classList.toggle('repair-unlocked', unlocked);
+        g.classList.toggle('repair-revealed-fixed', state === 'revealed-fixed');
         g.classList.toggle('repair-completed', unlocked && finalized);
         g.classList.toggle('cell-selected', cellKeyEq(selectedCell, {L,r,c}));
 

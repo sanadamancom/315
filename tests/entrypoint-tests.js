@@ -24,13 +24,22 @@ console.log('== entrypoint (index.html) ==');
   const forbidden = ['ふつう','むずかしい','とても難しい','難易度選択','新しい問題','候補プール','組み合わせ検索','お助け機能','ランダム問題生成','中クリック','Shift＋クリック','測定履歴','測定機','id="boardHud"','id="hudLineList"','id="hudDiagTitle"'];
   check('index.htmlに旧3難易度ボタン等・旧HUDが存在しない', forbidden.every(s => !html.includes(s)));
 
-  const required = ['修復型パズル','固定セル113個','未確定セル12個','リセット','Undo'];
+  const required = ['修復型パズル','未確定12','解読済み15','封印98','リセット','Undo'];
   check('index.htmlに必須表記が揃っている', required.every(s => html.includes(s)));
 
   const staleCounts = ['固定セル117個','未確定セル8個'];
   check('Prototype 01由来の古い件数表記(117/8)が残っていない', staleCounts.every(s => !html.includes(s)));
 
   check('近・遠・成立・同の簡潔な説明が存在する', ['近','遠','成立','同'].every(s => html.includes(s)) && /315に近づいた/.test(html) && /315から離れた/.test(html));
+
+  // Prototype 05: 3状態(未確定/解読済み固定/封印固定)の凡例・交換可否・開始指針。
+  check('未確定マス(金色)の交換可否が説明されている', /金色の数字は交換できる未確定マス/.test(html));
+  check('解読済み固定マス(淡い数字)が交換不可と説明されている', /淡い数字は解読済みの固定マス/.test(html) && /交換できません/.test(html));
+  check('封印固定マス(鍵穴)が交換不可と説明されている', /鍵穴は封印された固定マス/.test(html));
+  check('開始指針(↑が重なる大きめ/↓が重なる小さめ)が存在する', /複数の↑が重なる大きめ/.test(html) && /複数の↓が重なる小さめ/.test(html) && /交換候補/.test(html));
+  check('Prototype 04時代の「数字が見えない113マスは固定」という古い説明が残っていない', !html.includes('数字が見えない113マスは固定'));
+  check('固定セル113個・未確定セル12個という2状態表記が残っていない', !html.includes('固定セル113個') && !html.includes('未確定セル12個'));
+  check('解読・解除機能が実装済みと誤認させる文言がない', !/(解読する|解除する|解読権|解除条件|開放機能|封印を解く|鍵を開ける)/.test(html));
 
   // 診断一覧(旧board-hud)がサイドバーへ戻されていないこと、盤面内の凡例(board-legend)が存在すること。
   const asideMatch = html.match(/<aside[\s\S]*?<\/aside>/);

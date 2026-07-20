@@ -467,7 +467,7 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
       (function(){
         let bad = 0;
         for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
-          if(isRepairUnlocked(L,r,c)) continue;
+          if(cellPresentationState(L,r,c) !== 'sealed-fixed') continue;
           const el = document.querySelector('.iso-cell[data-l="'+L+'"][data-r="'+r+'"][data-c="'+c+'"]');
           const label = el.querySelector('.cube-label');
           if(!label || label.textContent !== '') bad++;
@@ -475,7 +475,7 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
         return bad;
       })()
     `);
-    check('固定セルのcube-labelが全て空文字', lockedLabelsAllEmpty === 0);
+    check('sealed-fixedセルのcube-labelが全て空文字', lockedLabelsAllEmpty === 0);
 
     const unlockedLabelsShowValue = evalW(`
       (function(){
@@ -495,7 +495,7 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
       (function(){
         let bad = 0;
         for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
-          if(isRepairUnlocked(L,r,c)) continue;
+          if(cellPresentationState(L,r,c) !== 'sealed-fixed') continue;
           const el = document.querySelector('.iso-cell[data-l="'+L+'"][data-r="'+r+'"][data-c="'+c+'"]');
           const val = repairGridValue(repairState, L, r, c);
           const html = el.outerHTML;
@@ -504,7 +504,7 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
         return bad;
       })()
     `);
-    check('固定セルの内部値がDOM(aria-label/title含む)へ露出しない', lockedNoExposure === 0);
+    check('sealed-fixedセルの内部値がDOM(aria-label/title含む)へ露出しない', lockedNoExposure === 0);
 
     // 固定セルの選択・ラインフォーカスは維持されること(数字非表示後も観察対象として機能する)
     // ハードコード座標ではなく、REPAIR_CELLSに含まれない座標を動的に検出する。
@@ -592,7 +592,7 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
       (function(){
         let bad = 0;
         for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
-          if(isRepairUnlocked(L,r,c)) continue;
+          if(cellPresentationState(L,r,c) !== 'sealed-fixed') continue;
           const el = document.querySelector('.iso-cell[data-l="'+L+'"][data-r="'+r+'"][data-c="'+c+'"]');
           const label = el.querySelector('.cube-label');
           if(!label || label.textContent !== '') bad++;
@@ -600,7 +600,7 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
         return bad;
       })()
     `);
-    check('固定数字非表示が維持される', lockedStillEmpty === 0);
+    check('sealed-fixedの数字非表示が維持される', lockedStillEmpty === 0);
   }
 
   // ---- 15) 直前交換結果のライフサイクル(選択維持・Undo/Reset・次交換での置換) ----
@@ -744,6 +744,204 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
     const { doc } = helpers(dom);
     const leaking = doc.querySelectorAll('.iso-cell.ok, .iso-cell.warn, .iso-cell.bad, .iso-cell.correct, .iso-cell.wrong, .iso-cell.cell-correct, .iso-cell.cell-wrong');
     check('正誤を示す禁止クラスがセルに付与されない', leaking.length === 0);
+  }
+
+  // ---- 18) Prototype 05: revealed-fixed表示接続 ----
+  {
+    const { dom } = await loadPage();
+    const { doc, evalW, cellEl, click } = helpers(dom);
+
+    const counts = evalW(`
+      (function(){
+        const out = { movable:0, revealed:0, sealed:0, movableShown:0, revealedShown:0, sealedShown:0 };
+        for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+          const state = cellPresentationState(L,r,c);
+          const el = document.querySelector('.iso-cell[data-l="'+L+'"][data-r="'+r+'"][data-c="'+c+'"]');
+          const label = el.querySelector('.cube-label');
+          const shown = !!(label && label.textContent !== '');
+          if(state==='movable'){ out.movable++; if(shown) out.movableShown++; }
+          else if(state==='revealed-fixed'){ out.revealed++; if(shown) out.revealedShown++; }
+          else { out.sealed++; if(shown) out.sealedShown++; }
+        }
+        return out;
+      })()
+    `);
+    check('movable 12セル全てで数字が表示される', counts.movable===12 && counts.movableShown===12);
+    check('revealed-fixed 15セル全てで数字が表示される', counts.revealed===15 && counts.revealedShown===15);
+    check('sealed-fixed 98セルは数字が表示されない', counts.sealed===98 && counts.sealedShown===0);
+    check('盤面全体の数字表示が合計27セル', counts.movableShown + counts.revealedShown === 27);
+
+    // sealed-fixedの数字がDOM属性(aria-label/title/data-value等)にも露出しないこと。
+    // data-l/data-r/data-c/data-key/idなど構造的な座標属性は対象外(数字は座標であり漏洩ではない)。
+    const sealedLeak = evalW(`
+      (function(){
+        let leak = 0;
+        const structuralAttrs = new Set(['data-l','data-r','data-c','data-key','id','class']);
+        for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+          if(cellPresentationState(L,r,c) !== 'sealed-fixed') continue;
+          const el = document.querySelector('.iso-cell[data-l="'+L+'"][data-r="'+r+'"][data-c="'+c+'"]');
+          for(const attr of Array.from(el.attributes)){
+            if(structuralAttrs.has(attr.name)) continue;
+            if(/[1-9][0-9]{0,2}/.test(attr.value)) leak++;
+          }
+          const titleEl = el.querySelector('title');
+          const titleText = titleEl ? titleEl.textContent : '';
+          if(/[1-9][0-9]{0,2}/.test(titleText)) leak++;
+        }
+        return leak;
+      })()
+    `);
+    check('sealed-fixedの数字がDOM属性・title等に露出しない', sealedLeak === 0);
+
+    // revealed-fixedとsealed-fixedは交換不可(既存の未確定セル同士だけ交換できる挙動を維持)
+    const revealedCoord = evalW(`
+      (function(){
+        for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+          if(cellPresentationState(L,r,c)==='revealed-fixed') return {L,r,c};
+        }
+      })()
+    `);
+    const sealedCoord = evalW(`
+      (function(){
+        for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+          if(cellPresentationState(L,r,c)==='sealed-fixed') return {L,r,c};
+        }
+      })()
+    `);
+    click(revealedCoord.L, revealedCoord.r, revealedCoord.c);
+    click(sealedCoord.L, sealedCoord.r, sealedCoord.c);
+    const stateUnchanged = evalW(`JSON.stringify(repairState) === JSON.stringify(createInitialRepairState())`);
+    check('revealed-fixedとsealed-fixedは交換できない(状態が変化しない)', stateUnchanged === true);
+
+    // 既存の交換可能セル12件と交換挙動が変わらない(未確定セル同士は従来どおり交換できる)
+    const beforeSwap = evalW('JSON.stringify(repairState)');
+    evalW(`
+      (function(){
+        const a = REPAIR_CELLS[0], b = REPAIR_CELLS[1];
+        onCellClick(a.L,a.r,a.c);
+        onCellClick(b.L,b.r,b.c);
+      })()
+    `);
+    await new Promise(r=>setTimeout(r, evalW('SWAP_ANIM_MS') + 150));
+    const afterSwap = evalW('JSON.stringify(repairState)');
+    check('未確定セル同士は従来どおり交換できる', beforeSwap !== afterSwap);
+
+    // revealed-fixedがmovable由来のCSSクラス(金・破線)を持たないこと
+    const revealedNoGoldClass = evalW(`
+      (function(){
+        for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+          if(cellPresentationState(L,r,c)!=='revealed-fixed') continue;
+          const el = document.querySelector('.iso-cell[data-l="'+L+'"][data-r="'+r+'"][data-c="'+c+'"]');
+          if(el.classList.contains('repair-unlocked')) return false;
+        }
+        return true;
+      })()
+    `);
+    check('revealed-fixedはmovableの破線・金色classを持たない', revealedNoGoldClass === true);
+
+    // ---- 鍵穴(sealed-fixedのみ・冪等・非干渉) ----
+    const keyholeCounts1 = evalW(`
+      (function(){
+        const out = { sealed:0, movable:0, revealed:0 };
+        for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+          const state = cellPresentationState(L,r,c);
+          const el = document.querySelector('.iso-cell[data-l="'+L+'"][data-r="'+r+'"][data-c="'+c+'"]');
+          const hasKeyhole = !!el.querySelector('.cell-keyhole');
+          if(state==='sealed-fixed' && hasKeyhole) out.sealed++;
+          if(state==='movable' && hasKeyhole) out.movable++;
+          if(state==='revealed-fixed' && hasKeyhole) out.revealed++;
+        }
+        return out;
+      })()
+    `);
+    check('sealed-fixedの鍵穴が98件', keyholeCounts1.sealed === 98);
+    check('movableの鍵穴が0件', keyholeCounts1.movable === 0);
+    check('revealed-fixedの鍵穴が0件', keyholeCounts1.revealed === 0);
+
+    // 鍵穴が内部値(数字/title/data値)を持たず、非干渉(pointer-events:none, aria-hidden)であること
+    const keyholeSafety = evalW(`
+      (function(){
+        let numericLeak=0, pointerBad=0, ariaBad=0, checked=0;
+        for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+          if(cellPresentationState(L,r,c) !== 'sealed-fixed') continue;
+          const el = document.querySelector('.iso-cell[data-l="'+L+'"][data-r="'+r+'"][data-c="'+c+'"]');
+          const kh = el.querySelector('.cell-keyhole');
+          if(!kh) continue;
+          checked++;
+          if(kh.textContent.trim() !== '') numericLeak++;
+          if(kh.querySelector('title')) numericLeak++;
+          for(const child of kh.querySelectorAll('*')){
+            for(const attr of Array.from(child.attributes)){
+              if(attr.name.startsWith('data-') || attr.name==='title'){ numericLeak++; }
+            }
+          }
+          if(kh.getAttribute('pointer-events') !== 'none') pointerBad++;
+          if(kh.getAttribute('aria-hidden') !== 'true') ariaBad++;
+        }
+        return { checked, numericLeak, pointerBad, ariaBad };
+      })()
+    `);
+    check('鍵穴チェック対象が98件', keyholeSafety.checked === 98);
+    check('鍵穴に内部値(数字/title/data値)が含まれない', keyholeSafety.numericLeak === 0);
+    check('鍵穴がpointer-events:none', keyholeSafety.pointerBad === 0);
+    check('鍵穴がaria-hidden=true', keyholeSafety.ariaBad === 0);
+
+    // renderAll再実行・Reset後も重複生成しない
+    evalW('renderAll(); renderAll();');
+    const keyholeAfterRerender = evalW(`
+      (function(){
+        let bad = 0;
+        for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+          if(cellPresentationState(L,r,c) !== 'sealed-fixed') continue;
+          const el = document.querySelector('.iso-cell[data-l="'+L+'"][data-r="'+r+'"][data-c="'+c+'"]');
+          if(el.querySelectorAll('.cell-keyhole').length !== 1) bad++;
+        }
+        return bad;
+      })()
+    `);
+    check('renderAllを複数回実行しても鍵穴が重複しない', keyholeAfterRerender === 0);
+
+    doc.getElementById('resetBtn').dispatchEvent(new dom.window.MouseEvent('click', {bubbles:true}));
+    const keyholeAfterReset = evalW(`
+      (function(){
+        let count = 0, dup = 0;
+        for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+          if(cellPresentationState(L,r,c) !== 'sealed-fixed') continue;
+          const el = document.querySelector('.iso-cell[data-l="'+L+'"][data-r="'+r+'"][data-c="'+c+'"]');
+          const n = el.querySelectorAll('.cell-keyhole').length;
+          if(n===1) count++;
+          if(n>1) dup++;
+        }
+        return { count, dup };
+      })()
+    `);
+    check('Reset後も鍵穴が98件で重複しない', keyholeAfterReset.count === 98 && keyholeAfterReset.dup === 0);
+
+    // 交換とUndo後も件数・状態が維持される
+    evalW(`
+      (function(){
+        const a = REPAIR_CELLS[0], b = REPAIR_CELLS[1];
+        onCellClick(a.L,a.r,a.c);
+        onCellClick(b.L,b.r,b.c);
+      })()
+    `);
+    await new Promise(r=>setTimeout(r, evalW('SWAP_ANIM_MS') + 150));
+    doc.getElementById('undoBtn').dispatchEvent(new dom.window.MouseEvent('click', {bubbles:true}));
+    await new Promise(r=>setTimeout(r, evalW('SWAP_ANIM_MS') + 150));
+    const keyholeAfterSwapUndo = evalW(`
+      (function(){
+        let count = 0, dup = 0;
+        for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+          if(cellPresentationState(L,r,c) !== 'sealed-fixed') continue;
+          const el = document.querySelector('.iso-cell[data-l="'+L+'"][data-r="'+r+'"][data-c="'+c+'"]');
+          const n = el.querySelectorAll('.cell-keyhole').length;
+          if(n===1) count++;
+          if(n>1) dup++;
+        }
+        return { count, dup };
+      })()
+    `);
+    check('交換・Undo後も鍵穴が98件で重複しない', keyholeAfterSwapUndo.count === 98 && keyholeAfterSwapUndo.dup === 0);
   }
 
   server.close();

@@ -30,6 +30,8 @@ vm.runInContext(`
   globalThis.buildLines109 = buildLines109;
   globalThis.lineLabel = lineLabel;
   globalThis.REPAIR_CELLS = REPAIR_CELLS;
+  globalThis.REVEALED_FIXED_CELLS = REVEALED_FIXED_CELLS;
+  globalThis.cellPresentationState = cellPresentationState;
   globalThis.repairCellKey = repairCellKey;
   globalThis.isRepairUnlocked = isRepairUnlocked;
   globalThis.repairCellDef = repairCellDef;
@@ -133,6 +135,76 @@ console.log('== puzzle (static repair definition) ==');
   const correctState = {};
   for(const c of REPAIR_CELLS) correctState[ctx.repairCellKey(c.L,c.r,c.c)] = c.correctValue;
   check('正解復元時のみクリアする', ctx.isRepairSolved(correctState) === true);
+}
+
+console.log('== presentation state (Prototype 05) ==');
+{
+  const lines = ctx.buildLines109();
+  const REPAIR_CELLS = ctx.REPAIR_CELLS;
+  const REVEALED_FIXED_CELLS = ctx.REVEALED_FIXED_CELLS;
+
+  check('REVEALED_FIXED_CELLSが15件', REVEALED_FIXED_CELLS.length === 15);
+
+  // 全125セルを3状態へ分類し件数を確認。同時に座標範囲・重複・movableとの非重複も確認。
+  let movable=0, revealed=0, sealed=0, outOfPuzzleRange=0, revealedDup=0;
+  const revealedKeySet = new Set();
+  for(let L=1;L<=5;L++) for(let r=0;r<5;r++) for(let c=0;c<5;c++){
+    const state = ctx.cellPresentationState(L,r,c);
+    if(state==='movable') movable++;
+    else if(state==='revealed-fixed'){
+      revealed++;
+      const k = ctx.repairCellKey(L,r,c);
+      if(revealedKeySet.has(k)) revealedDup++;
+      revealedKeySet.add(k);
+      if(ctx.isRepairUnlocked(L,r,c)) outOfPuzzleRange++; // revealed-fixedがmovableと重複してはならない
+    }
+    else sealed++;
+  }
+  check('分類件数が12/15/98', movable===12 && revealed===15 && sealed===98);
+  check('revealed-fixedは全て固定セル(movableと非重複)かつ座標重複なし', outOfPuzzleRange===0 && revealedDup===0);
+
+  // 各LEVEL 3個、LEVEL内でrow・column重複なし
+  let levelCountOk = true, rowColDupOk = true;
+  for(let L=1;L<=5;L++){
+    const cellsInLevel = REVEALED_FIXED_CELLS.filter(c=>c.L===L);
+    if(cellsInLevel.length !== 3) levelCountOk = false;
+    const rowSet = new Set(cellsInLevel.map(c=>c.r));
+    const colSet = new Set(cellsInLevel.map(c=>c.c));
+    if(rowSet.size !== cellsInLevel.length || colSet.size !== cellsInLevel.length) rowColDupOk = false;
+  }
+  check('各LEVEL 3個', levelCountOk);
+  check('各LEVEL内でrow・columnが重複しない', rowColDupOk);
+
+  // active line = 未確定セル(REPAIR_CELLS)を1個以上含む109ライン
+  const isUnconfirmedCoord = (cell) => REPAIR_CELLS.some(u => u.L===cell.z+1 && u.r===cell.y && u.c===cell.x);
+  const activeLines = lines.filter(line => line.cells.some(isUnconfirmedCoord));
+  const isRevealedCoord = (cell) => REVEALED_FIXED_CELLS.some(rv => rv.L===cell.z+1 && rv.r===cell.y && rv.c===cell.x);
+  const isFixedCoord = (cell) => !ctx.isRepairUnlocked(cell.z+1, cell.y, cell.x);
+
+  // 各LEVELで最低1個はactive line上のrevealed-fixed
+  let levelActiveOk = true;
+  for(let L=1;L<=5;L++){
+    const hasActiveRevealed = REVEALED_FIXED_CELLS.some(rv => rv.L===L &&
+      activeLines.some(line => line.cells.some(cell => cell.z===rv.L-1 && cell.y===rv.r && cell.x===rv.c)));
+    if(!hasActiveRevealed) levelActiveOk = false;
+  }
+  check('各LEVELで最低1個がactive line上', levelActiveOk);
+
+  // 全active lineでrevealed-fixed最大1、sealed-fixed(固定セルのうち非表示)最低2
+  let maxRevealedInLine = 0, minSealedInLine = 99;
+  for(const line of activeLines){
+    const fixedInLine = line.cells.filter(isFixedCoord);
+    const revealedInLine = fixedInLine.filter(isRevealedCoord).length;
+    const sealedInLine = fixedInLine.length - revealedInLine;
+    maxRevealedInLine = Math.max(maxRevealedInLine, revealedInLine);
+    minSealedInLine = Math.min(minSealedInLine, sealedInLine);
+  }
+  check('全active lineでrevealed-fixed最大1', maxRevealedInLine <= 1);
+  check('全active lineでsealed-fixed最低2', minSealedInLine >= 2);
+
+  // 既存の問題配置・109ライン・交換可否が変わっていないことの確認
+  check('既存REPAIR_CELLSは12件のまま', REPAIR_CELLS.length === 12);
+  check('109ラインは変わらず109本', lines.length === 109);
 }
 
 console.log('== measure ==');

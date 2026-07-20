@@ -178,6 +178,14 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
 .iso-cell.given{cursor:default;}
 .iso-cell.given .cube-label{fill:#ffffff;}
 
+/* revealed-fixed(解読済み固定)セル: givenの通常カーソルを維持したまま、
+   movableの金色・破線・glowを使わない控えめな中立色で数字を表示する。 */
+.iso-cell.repair-revealed-fixed .cube-label{fill:var(--bone);}
+
+/* sealed-fixed(封印固定)セル: 小さな単色鍵穴シルエットだけを表示する。
+   クリック判定・読み上げ・LEVEL背景色には一切影響させない。 */
+.iso-cell .cell-keyhole{fill:var(--bone);opacity:0.4;}
+
 /* unlocked(未確定)セル: 破線の縁取りで区別する。正誤は一切表さない。 */
 .iso-cell.repair-unlocked .cube-face{stroke:var(--brass);stroke-width:1.8;stroke-dasharray:4,3;}
 .iso-cell.repair-unlocked .cube-label{fill:var(--warn);}
@@ -204,6 +212,7 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
 .iso-cell.line-focus-dimmed .cube-face{filter:brightness(0.42);}
 .iso-cell.line-focus-dimmed .cube-label{opacity:0.5;}
 .iso-cell.line-focus-dimmed .cell-diag-outline{opacity:0.3;}
+.iso-cell.line-focus-dimmed .cell-keyhole{opacity:0.2;}
 
 /* 交換元の選択表示: 最優先の白枠。ラインフォーカスやdimmedより常に前面に見える。 */
 .iso-cell.cell-selected .cube-face{filter:brightness(1.5) saturate(1.3) !important;stroke:#fff !important;stroke-width:3 !important;stroke-dasharray:none;}
@@ -251,7 +260,7 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
 
   <aside class="sidebar">
     <div class="side-title">修復型パズル(試作)</div>
-    <div class="side-sub">REPAIR PROTOTYPE — 固定セル113個・未確定セル12個</div>
+    <div class="side-sub">REPAIR PROTOTYPE — 未確定12・解読済み15・封印98</div>
 
     <div class="side-section">
       <button id="resetBtn" class="ghost full">リセット(初期破損状態に戻す)</button>
@@ -273,13 +282,14 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
         <li>正しい未確定マスと間違った未確定マスは同じ表示です</li>
       </ul>
       <div class="caveat" style="margin-top:10px;">
-        数字が見えない113マスは固定で交換できません。数字が見える12マスの未確定マスは、
-        そのマス同士だけ交換できます。マスの縁の色(緑/赤)は「そのマスを通るラインが全部
-        315かどうか」を示すだけで、マス単体の正誤ではありません。行・列・層内対角線は
-        不成立(↑/↓)のときだけ各盤面の側面・角に記号が出ます。柱や空間対角線などの状態は
-        マスを選ぶと近くにバッジで表示されます。交換直後は影響したラインへ、近＝315に近づいた
-        ／遠＝315から離れた／成立＝315になった／同＝315との差が変化なし、を現在の記号と
-        一緒に一時表示します。
+        金色の数字は交換できる未確定マス(12個)です。淡い数字は解読済みの固定マス(15個)、
+        鍵穴は封印された固定マス(98個)で、どちらも交換できません。マスの縁の色(緑/赤)は
+        「そのマスを通るラインが全部315かどうか」を示すだけで、マス単体の正誤ではありません。
+        行・列・層内対角線は不成立(↑/↓)のときだけ各盤面の側面・角に記号が出ます。柱や
+        空間対角線などの状態はマスを選ぶと近くにバッジで表示されます。交換直後は影響した
+        ラインへ、近＝315に近づいた／遠＝315から離れた／成立＝315になった／同＝315との差が
+        変化なし、を現在の記号と一緒に一時表示します。まず、複数の↑が重なる大きめの金色の
+        数字と、複数の↓が重なる小さめの金色の数字を交換候補にしてみましょう。
       </div>
     </div>
   </aside>
