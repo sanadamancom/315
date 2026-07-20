@@ -631,6 +631,8 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
 
     // 成立(＝)ラインは通常非表示だが、直前結果がある間だけ一時的に表示されることを、
     // 状態を直接操作してcandidateに依存せず確認する(初期状態には成立中の行ラインが多数存在する)。
+    // ＝は黒く潰れるフォント文字ではなくeq-symbol(水平線2本)で表すため、textは空、
+    // eq-symbolが表示され、band-indicatorは非表示であることを確認する。
     const solvedDisplay = evalW(`
       (function(){
         function directText(el){ let o=''; el.childNodes.forEach(n=>{ if(n.nodeType===3) o+=n.textContent; }); return o; }
@@ -640,15 +642,19 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
         renderAll();
         const el = document.querySelector('.row-wall-label[data-l="'+(eqLine.cells[0].z+1)+'"][data-r="'+eqLine.cells[0].y+'"]');
         const indicator = document.querySelector('.row-wall-band[data-l="'+(eqLine.cells[0].z+1)+'"][data-r="'+eqLine.cells[0].y+'"]');
+        const eqSymbol = document.querySelector('.row-wall-eq[data-l="'+(eqLine.cells[0].z+1)+'"][data-r="'+eqLine.cells[0].y+'"]');
         return {
           found:true, text: directText(el), pointerEvents: el.style.pointerEvents, hasLineKey: !!el.dataset.lineKey,
           indicatorHidden: !indicator || indicator.style.display === 'none',
+          eqSymbolShown: !!eqSymbol && eqSymbol.style.display !== 'none',
+          eqBarCount: eqSymbol ? eqSymbol.querySelectorAll('.eq-bar').length : 0,
         };
       })()
     `);
-    check('成立した影響ラインは＝のみ表示され、山形・成立文字・band点が出ない',
-      solvedDisplay.found && solvedDisplay.text === '=' && solvedDisplay.pointerEvents === 'none'
-      && !solvedDisplay.hasLineKey && solvedDisplay.indicatorHidden === true);
+    check('成立した影響ラインは文字なし(空)でeq-symbol(bar2本)のみ表示され、山形・band点が出ない',
+      solvedDisplay.found && solvedDisplay.text === '' && solvedDisplay.pointerEvents === 'none'
+      && !solvedDisplay.hasLineKey && solvedDisplay.indicatorHidden === true
+      && solvedDisplay.eqSymbolShown === true && solvedDisplay.eqBarCount === 2);
 
     // 対象feedback DOM(平面ラベル・階層横断badge・panel)に旧可視文字が一切残っていない
     const oldTextLeak = evalW(`

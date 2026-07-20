@@ -79,13 +79,15 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
 .cross-badge .cb-result.under{color:var(--under);}
 .cross-badge .cb-result{display:inline-flex;align-items:center;gap:3px;}
 .cross-badge .band-indicator{display:inline-flex;flex-direction:column;align-items:center;gap:3px;width:7px;}
-.cross-badge .band-dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:0;}
+.cross-badge .band-dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:0;box-shadow:0 0 0 0.8px rgba(0,0,0,0.65);}
 .cross-badge .band-indicator.show-1 .band-dot-1{opacity:1;}
 .cross-badge .band-indicator.show-2 .band-dot-1,
 .cross-badge .band-indicator.show-2 .band-dot-2{opacity:1;}
-.cross-badge .band-chevron-html{width:0;height:0;pointer-events:none;}
+.cross-badge .band-chevron-html{width:0;height:0;pointer-events:none;filter:drop-shadow(0 0 0.6px rgba(0,0,0,0.65));}
 .cross-badge .band-chevron-html.up{border-left:3.5px solid transparent;border-right:3.5px solid transparent;border-bottom:4px solid currentColor;}
 .cross-badge .band-chevron-html.down{border-left:3.5px solid transparent;border-right:3.5px solid transparent;border-top:4px solid currentColor;}
+.cross-badge .eq-symbol-html{display:inline-flex;flex-direction:column;align-items:center;gap:2.5px;width:14px;}
+.cross-badge .eq-bar-html{width:14px;height:2px;background:currentColor;border-radius:1px;box-shadow:0 0 0 0.6px rgba(0,0,0,0.65);}
 
 /* ---- 直前交換結果(階層横断ライン)専用panel: board-legend(左下)とは反対の右上へ固定表示する。
    selectedCellには依存せず、通常のcrossLevelBadgesとは別要素・別配置。 ---- */
@@ -171,17 +173,25 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
    不成立(↑/↓)のときだけ表示され、対応する側面区画も含めてクリック可能になる。 */
 .wall-label, .edge-label{
   font-family:var(--mono);font-weight:800;cursor:pointer;
-  paint-order:stroke;stroke:rgba(0,0,0,0.6);stroke-width:3.4px;stroke-linejoin:round;
-  font-size:18px;
+  paint-order:stroke;stroke:rgba(0,0,0,0.65);stroke-width:1.4px;stroke-linejoin:round;
+  font-size:20px;
 }
-.edge-label{font-size:18px;}
+.edge-label{font-size:20px;}
 .wall-label.stat-over, .edge-label.stat-over{fill:var(--bad);}
 .wall-label.stat-under, .edge-label.stat-under{fill:var(--under);}
 .band-indicator{pointer-events:none;}
-.band-indicator .band-dot{fill:currentColor;}
-.band-indicator .band-chevron{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.band-indicator .band-dot{fill:currentColor;stroke:rgba(0,0,0,0.65);stroke-width:0.8px;}
+.band-indicator .band-chevron{
+  fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;
+  filter:drop-shadow(0 0 0.6px rgba(0,0,0,0.65)) drop-shadow(0 0 0.6px rgba(0,0,0,0.65));
+}
 .band-indicator.stat-over{color:var(--bad);}
 .band-indicator.stat-under{color:var(--under);}
+.eq-symbol{pointer-events:none;}
+.eq-symbol .eq-bar{
+  stroke:var(--ok);stroke-width:2.4px;stroke-linecap:round;
+  filter:drop-shadow(0 0 0.6px rgba(0,0,0,0.65)) drop-shadow(0 0 0.6px rgba(0,0,0,0.65));
+}
 .row-wall-hit, .col-wall-hit, .diag-hit{cursor:pointer;}
 
 .iso-cell .cube-face{transition:filter .1s ease;}

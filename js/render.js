@@ -27,10 +27,10 @@ function createBandIndicator(className){
   chevronTop.style.display = 'none';
   const dot1 = document.createElementNS(SVG_NS,'circle');
   dot1.setAttribute('class','band-dot band-dot-1');
-  dot1.setAttribute('r','2.3');
+  dot1.setAttribute('r','2.8');
   const dot2 = document.createElementNS(SVG_NS,'circle');
   dot2.setAttribute('class','band-dot band-dot-2');
-  dot2.setAttribute('r','2.3');
+  dot2.setAttribute('r','2.8');
   const chevronBottom = document.createElementNS(SVG_NS,'path');
   chevronBottom.setAttribute('class','band-chevron band-chevron-bottom');
   chevronBottom.style.display = 'none';
@@ -38,6 +38,21 @@ function createBandIndicator(className){
   g.appendChild(dot1);
   g.appendChild(dot2);
   g.appendChild(chevronBottom);
+  return g;
+}
+
+// Prototype 06: フォント文字の＝(黒いstrokeで潰れやすい)の代わりに、水平線2本で＝を表す。
+// 位置は呼び出し側(repair-main.js)が対応テキストのx/y属性から設定し直す。初期状態は非表示。
+function createEqSymbol(className){
+  const g = document.createElementNS(SVG_NS,'g');
+  g.setAttribute('class', `eq-symbol ${className}`);
+  g.style.display = 'none';
+  const bar1 = document.createElementNS(SVG_NS,'line');
+  bar1.setAttribute('class','eq-bar eq-bar-1');
+  const bar2 = document.createElementNS(SVG_NS,'line');
+  bar2.setAttribute('class','eq-bar eq-bar-2');
+  g.appendChild(bar1);
+  g.appendChild(bar2);
   return g;
 }
 
@@ -347,18 +362,20 @@ function buildLevelCard(L){
 
         // this left-facing wall segment is indexed by column c -> shows the column sum
         const cx = (left.x + bottom.x)/2, cy = (left.y + bottom.y)/2 + CELL_WALL/2;
+        const colGroup = document.createElementNS(SVG_NS,'g');
+        colGroup.setAttribute('class','indicator-group col-wall-igroup');
         const label = document.createElementNS(SVG_NS,'text');
         label.setAttribute('class','wall-label col-wall-label');
         label.dataset.l = L; label.dataset.c = c;
         label.setAttribute('x', cx); label.setAttribute('y', cy);
         label.setAttribute('text-anchor','middle');
         label.setAttribute('dominant-baseline','central');
-        board.appendChild(label);
-        board.appendChild(createBandIndicator('col-wall-band'));
-        {
-          const bi = board.lastChild;
-          bi.dataset.l = L; bi.dataset.c = c;
-        }
+        colGroup.appendChild(label);
+        colGroup.appendChild(createBandIndicator('col-wall-band'));
+        colGroup.appendChild(createEqSymbol('col-wall-eq'));
+        { const bi = colGroup.querySelector('.col-wall-band'), eq = colGroup.querySelector('.col-wall-eq');
+          bi.dataset.l = L; bi.dataset.c = c; eq.dataset.l = L; eq.dataset.c = c; }
+        board.appendChild(colGroup);
       }
       if(c === N-1){
         const right = vertexPoint(r,c+1,TILE_W,TILE_H,originX);
@@ -379,18 +396,20 @@ function buildLevelCard(L){
 
         // this right-facing wall segment is indexed by row r -> shows the row sum
         const cx = (right.x + bottom.x)/2, cy = (right.y + bottom.y)/2 + CELL_WALL/2;
+        const rowGroup = document.createElementNS(SVG_NS,'g');
+        rowGroup.setAttribute('class','indicator-group row-wall-igroup');
         const label = document.createElementNS(SVG_NS,'text');
         label.setAttribute('class','wall-label row-wall-label');
         label.dataset.l = L; label.dataset.r = r;
         label.setAttribute('x', cx); label.setAttribute('y', cy);
         label.setAttribute('text-anchor','middle');
         label.setAttribute('dominant-baseline','central');
-        board.appendChild(label);
-        board.appendChild(createBandIndicator('row-wall-band'));
-        {
-          const bi = board.lastChild;
-          bi.dataset.l = L; bi.dataset.r = r;
-        }
+        rowGroup.appendChild(label);
+        rowGroup.appendChild(createBandIndicator('row-wall-band'));
+        rowGroup.appendChild(createEqSymbol('row-wall-eq'));
+        { const bi = rowGroup.querySelector('.row-wall-band'), eq = rowGroup.querySelector('.row-wall-eq');
+          bi.dataset.l = L; bi.dataset.r = r; eq.dataset.l = L; eq.dataset.r = r; }
+        board.appendChild(rowGroup);
       }
     }
   }
@@ -447,6 +466,8 @@ function buildLevelCard(L){
 
   {
     const bottomV = vertexPoint(N,N,TILE_W,TILE_H,originX);
+    const mainGroup = document.createElementNS(SVG_NS,'g');
+    mainGroup.setAttribute('class','indicator-group diag-main-igroup');
     const text = document.createElementNS(SVG_NS,'text');
     text.setAttribute('class','edge-label diag-sum-main');
     text.dataset.l = L;
@@ -454,9 +475,12 @@ function buildLevelCard(L){
     text.setAttribute('y', bottomV.y + CELL_WALL + 13);
     text.setAttribute('text-anchor','middle');
     text.setAttribute('dominant-baseline','central');
-    board.appendChild(text);
-    board.appendChild(createBandIndicator('diag-band-main'));
-    { const bi = board.lastChild; bi.dataset.l = L; }
+    mainGroup.appendChild(text);
+    mainGroup.appendChild(createBandIndicator('diag-band-main'));
+    mainGroup.appendChild(createEqSymbol('diag-eq-main'));
+    { const bi = mainGroup.querySelector('.diag-band-main'), eq = mainGroup.querySelector('.diag-eq-main');
+      bi.dataset.l = L; eq.dataset.l = L; }
+    board.appendChild(mainGroup);
 
     const hit = document.createElementNS(SVG_NS,'circle');
     hit.setAttribute('class','diag-hit diag-hit-main');
@@ -469,6 +493,8 @@ function buildLevelCard(L){
   }
   {
     const rightV = vertexPoint(0,N,TILE_W,TILE_H,originX);
+    const antiGroup = document.createElementNS(SVG_NS,'g');
+    antiGroup.setAttribute('class','indicator-group diag-anti-igroup');
     const text = document.createElementNS(SVG_NS,'text');
     text.setAttribute('class','edge-label diag-sum-anti');
     text.dataset.l = L;
@@ -476,9 +502,12 @@ function buildLevelCard(L){
     text.setAttribute('y', rightV.y);
     text.setAttribute('text-anchor','start');
     text.setAttribute('dominant-baseline','central');
-    board.appendChild(text);
-    board.appendChild(createBandIndicator('diag-band-anti'));
-    { const bi = board.lastChild; bi.dataset.l = L; }
+    antiGroup.appendChild(text);
+    antiGroup.appendChild(createBandIndicator('diag-band-anti'));
+    antiGroup.appendChild(createEqSymbol('diag-eq-anti'));
+    { const bi = antiGroup.querySelector('.diag-band-anti'), eq = antiGroup.querySelector('.diag-eq-anti');
+      bi.dataset.l = L; eq.dataset.l = L; }
+    board.appendChild(antiGroup);
 
     const hit = document.createElementNS(SVG_NS,'circle');
     hit.setAttribute('class','diag-hit diag-hit-anti');

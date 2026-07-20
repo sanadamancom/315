@@ -469,15 +469,54 @@ function setDirectText(el, text){
 // 直前交換のcloser/fartherは、点列の外側(上下)へ向き付きの山形(SVG path)で示す。
 // closer: 上山形は下向き、下山形は上向き(点列へ収束)。farther: 逆向き(点列から拡散)。
 // 山形はband(点の縦配置)の外側位置に置くだけで、横位置(x)・インジケーター幅は変えない。
-const BAND_DOT_GAP = 4;
-const BAND_DOT_OFFSET = 3.8; // band2: 中央から上下への点オフセット(点の縁が3px以上離れるよう半径2.3に対して設定)
-const CHEVRON_HALF_W = 3.2, CHEVRON_H = 2.0, CHEVRON_GAP = 3.4;
+const BAND_DOT_GAP = 5;
+const BAND_DOT_OFFSET = 4.6; // band2: 中央から上下への点オフセット(半径2.8に対し縁が明確に分離するよう設定)
+const CHEVRON_HALF_W = 3.6, CHEVRON_H = 2.3, CHEVRON_GAP = 3.6;
+// 矢印＋余白＋点列の複合記号全体をライン中央へ配置するため、indicator-group全体をこの分だけ
+// 左へシフトする(band1/2で横幅を変えないよう、実測ではなく固定の予約幅を使う)。
+const INDICATOR_COLUMN_WIDTH = CHEVRON_HALF_W * 2;
+const COMPOSITE_HALF_SHIFT = (BAND_DOT_GAP + INDICATOR_COLUMN_WIDTH) / 2;
+// ＝記号(水平線2本)の寸法。フォント文字の＝(黒いstrokeで潰れる)を置き換える。
+const EQ_HALF_W = 7, EQ_GAP = 3;
+
 function chevronPath(cx, cy, pointing){
   // pointing:'up' => ^ 形状(頂点が上), 'down' => v 形状(頂点が下)
   const apexY = pointing === 'up' ? cy - CHEVRON_H : cy + CHEVRON_H;
   const baseY = pointing === 'up' ? cy + CHEVRON_H : cy - CHEVRON_H;
   return `M ${cx - CHEVRON_HALF_W} ${baseY} L ${cx} ${apexY} L ${cx + CHEVRON_HALF_W} ${baseY}`;
 }
+
+// indicator-group全体の中央揃えtransformを設定する。text-anchor='middle'の要素だけを
+// COMPOSITE_HALF_SHIFT分左へシフトし、複合記号(矢印+点列)の全体中心を元のアンカー位置へ揃える。
+// text-anchor='start'(diag-sum-anti)は元々アンカーが開始位置のため、シフトしない。
+// dots/chevronを表示しない状態(＝表示または非表示)ではシフトを解除する。
+function updateCompositeCentering(group, textEl, showDots){
+  if(!group) return;
+  const anchorMode = textEl.getAttribute('text-anchor');
+  if(showDots && anchorMode === 'middle'){
+    group.setAttribute('transform', `translate(${-COMPOSITE_HALF_SHIFT},0)`);
+  } else {
+    group.removeAttribute('transform');
+  }
+}
+
+// ＝記号(水平線2本)の表示/非表示・位置を更新する。テキストのx/y属性(アンカー)を基準に置く。
+// text-anchor='start'の場合はアンカーから右へ、'middle'の場合はアンカーを中心に描く。
+function updateEqSymbol(eqEl, textEl, show){
+  if(!eqEl) return;
+  if(!show){ eqEl.style.display = 'none'; return; }
+  const ax = parseFloat(textEl.getAttribute('x'));
+  const ay = parseFloat(textEl.getAttribute('y'));
+  const anchorMode = textEl.getAttribute('text-anchor');
+  const x1 = anchorMode === 'start' ? ax : ax - EQ_HALF_W;
+  const x2 = anchorMode === 'start' ? ax + EQ_HALF_W * 2 : ax + EQ_HALF_W;
+  const bar1 = eqEl.querySelector('.eq-bar-1');
+  const bar2 = eqEl.querySelector('.eq-bar-2');
+  if(bar1){ bar1.setAttribute('x1', x1); bar1.setAttribute('x2', x2); bar1.setAttribute('y1', ay - EQ_GAP); bar1.setAttribute('y2', ay - EQ_GAP); }
+  if(bar2){ bar2.setAttribute('x1', x1); bar2.setAttribute('x2', x2); bar2.setAttribute('y1', ay + EQ_GAP); bar2.setAttribute('y2', ay + EQ_GAP); }
+  eqEl.style.display = '';
+}
+
 function updateBandIndicator(indicatorEl, textEl, band, statClass, change){
   if(!indicatorEl) return;
   const chevronTop = indicatorEl.querySelector('.band-chevron-top');
@@ -529,7 +568,7 @@ function updateBandIndicator(indicatorEl, textEl, band, statClass, change){
 
 // 行・列・層内対角線(60本): 315のラインは記号非表示・操作不能にし、不成立(↑/↓)だけ
 // 記号とヒットボックス(側面区画/対角線ハンドル)をクリック可能にする。
-function applyFlatLabel(el, hit, line, lineStatuses, indicator){
+function applyFlatLabel(el, hit, line, lineStatuses, indicator, eqSymbol, group){
   if(!line) return;
   const status = lineStatuses.get(line.key);
   const change = lastSwapFeedback ? lastSwapFeedback.get(line.key) : undefined;
@@ -544,6 +583,8 @@ function applyFlatLabel(el, hit, line, lineStatuses, indicator){
     const title = el.querySelector('title');
     if(title) title.remove();
     updateBandIndicator(indicator, el, 0, null, undefined);
+    updateEqSymbol(eqSymbol, el, false);
+    updateCompositeCentering(group, el, false);
     return;
   }
 
@@ -551,7 +592,8 @@ function applyFlatLabel(el, hit, line, lineStatuses, indicator){
     el.classList.add(`stat-${diagStatusClass(status)}`);
   }
 
-  setDirectText(el, status);
+  // ＝は黒く潰れやすいフォント文字ではなく、eq-symbol(水平線2本)で表す。↑/↓は従来どおり文字。
+  setDirectText(el, status === '=' ? '' : status);
   if(change !== undefined) el.dataset.swapChange = change;
   else delete el.dataset.swapChange;
 
@@ -563,6 +605,8 @@ function applyFlatLabel(el, hit, line, lineStatuses, indicator){
     const title = el.querySelector('title');
     if(title) title.remove();
     updateBandIndicator(indicator, el, 0, null, undefined);
+    updateEqSymbol(eqSymbol, el, true);
+    updateCompositeCentering(group, el, false);
     return;
   }
 
@@ -580,32 +624,42 @@ function applyFlatLabel(el, hit, line, lineStatuses, indicator){
 
   const band = classifyDeviationBand(lineSum(repairState, line)).band;
   updateBandIndicator(indicator, el, band, diagStatusClass(status), change);
+  updateEqSymbol(eqSymbol, el, false);
+  updateCompositeCentering(group, el, true);
 }
 
 function renderFlatLineLabels(lineStatuses){
   document.querySelectorAll('.row-wall-label').forEach(el=>{
     const L = Number(el.dataset.l), r = Number(el.dataset.r);
     const hit = document.querySelector(`.row-wall-hit[data-l="${L}"][data-r="${r}"]`);
-    const indicator = document.querySelector(`.row-wall-band[data-l="${L}"][data-r="${r}"]`);
-    applyFlatLabel(el, hit, findRowLine(L, r), lineStatuses, indicator);
+    const group = el.parentNode;
+    const indicator = group.querySelector('.row-wall-band');
+    const eqSymbol = group.querySelector('.row-wall-eq');
+    applyFlatLabel(el, hit, findRowLine(L, r), lineStatuses, indicator, eqSymbol, group);
   });
   document.querySelectorAll('.col-wall-label').forEach(el=>{
     const L = Number(el.dataset.l), c = Number(el.dataset.c);
     const hit = document.querySelector(`.col-wall-hit[data-l="${L}"][data-c="${c}"]`);
-    const indicator = document.querySelector(`.col-wall-band[data-l="${L}"][data-c="${c}"]`);
-    applyFlatLabel(el, hit, findColLine(L, c), lineStatuses, indicator);
+    const group = el.parentNode;
+    const indicator = group.querySelector('.col-wall-band');
+    const eqSymbol = group.querySelector('.col-wall-eq');
+    applyFlatLabel(el, hit, findColLine(L, c), lineStatuses, indicator, eqSymbol, group);
   });
   document.querySelectorAll('.diag-sum-main').forEach(el=>{
     const L = Number(el.dataset.l);
     const hit = document.querySelector(`.diag-hit-main[data-l="${L}"]`);
-    const indicator = document.querySelector(`.diag-band-main[data-l="${L}"]`);
-    applyFlatLabel(el, hit, findLayerDiagMain(L), lineStatuses, indicator);
+    const group = el.parentNode;
+    const indicator = group.querySelector('.diag-band-main');
+    const eqSymbol = group.querySelector('.diag-eq-main');
+    applyFlatLabel(el, hit, findLayerDiagMain(L), lineStatuses, indicator, eqSymbol, group);
   });
   document.querySelectorAll('.diag-sum-anti').forEach(el=>{
     const L = Number(el.dataset.l);
     const hit = document.querySelector(`.diag-hit-anti[data-l="${L}"]`);
-    const indicator = document.querySelector(`.diag-band-anti[data-l="${L}"]`);
-    applyFlatLabel(el, hit, findLayerDiagAnti(L), lineStatuses, indicator);
+    const group = el.parentNode;
+    const indicator = group.querySelector('.diag-band-anti');
+    const eqSymbol = group.querySelector('.diag-eq-anti');
+    applyFlatLabel(el, hit, findLayerDiagAnti(L), lineStatuses, indicator, eqSymbol, group);
   });
 }
 
@@ -622,10 +676,15 @@ function wireFlatLineLabels(){
   });
 }
 
-// 階層横断badge(HTML)向け: 矢印・band点・(必要なら)closer/farther山形をまとめて組み立てる共通helper。
-// SVG側(updateBandIndicator)と同じ規則: closerは上=下向き/下=上向き(収束)、fartherは逆(拡散)。
-// changeがcloser/fartherでない場合は山形を出さない。正確な合計・偏差量は一切含めない。
+// 階層横断badge(HTML)向け: 矢印(または＝のbar要素)・band点・(必要なら)closer/farther山形を
+// まとめて組み立てる共通helper。SVG側(updateBandIndicator/updateEqSymbol)と同じ規則:
+// closerは上=下向き/下=上向き(収束)、fartherは逆(拡散)。＝は黒く潰れやすいフォント文字ではなく
+// bar要素2本(eq-symbol-html)で表す。changeがcloser/fartherでない場合は山形を出さない。
+// 正確な合計・偏差量は一切含めない。
 function buildCbResultHtml(status, band, change){
+  if(status === '='){
+    return `<span class="eq-symbol-html"><span class="eq-bar-html"></span><span class="eq-bar-html"></span></span>`;
+  }
   const arrowHtml = `<span class="cb-arrow">${status}</span>`;
   if(!band) return arrowHtml;
   const dotsClass = band === 2 ? 'show-2' : 'show-1';
