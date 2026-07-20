@@ -95,7 +95,7 @@ console.log('== puzzle (static repair definition) ==');
   const initState = ctx.createInitialRepairState();
   const correctCells = REPAIR_CELLS.filter(c => initState[ctx.repairCellKey(c.L,c.r,c.c)] === c.correctValue);
   const misplacedCells = REPAIR_CELLS.filter(c => initState[ctx.repairCellKey(c.L,c.r,c.c)] !== c.correctValue);
-  check('正しい位置に残る未確定セルと誤配置セルが両方存在する', correctCells.length >= 1 && misplacedCells.length >= 1);
+  check('未確定セル12件すべてが誤配置(固定点0)', correctCells.length === 0 && misplacedCells.length === 12);
 
   // 未確定セルの初期値集合が、その位置の正解値集合と一致すること(順列であること)。
   const correctValueMultiset = REPAIR_CELLS.map(c=>c.correctValue).slice().sort((a,b)=>a-b);
@@ -139,7 +139,7 @@ console.log('== puzzle (static repair definition) ==');
   check('正解復元時のみクリアする', ctx.isRepairSolved(correctState) === true);
 }
 
-console.log('== presentation state (Prototype 05 — 5:5 Variant B) ==');
+console.log('== presentation state (Prototype 07 — candidate 106b01ad) ==');
 {
   const lines = ctx.buildLines109();
   const REPAIR_CELLS = ctx.REPAIR_CELLS;
@@ -171,14 +171,18 @@ console.log('== presentation state (Prototype 05 — 5:5 Variant B) ==');
   }
   check('分類件数が12/57/56', movable===12 && revealed===57 && sealed===56);
 
-  // LEVEL別revealed件数(10/12/13/12/10)
-  const expectedPerLevel = {1:10, 2:12, 3:13, 4:12, 5:10};
+  // LEVEL別revealed件数(12/11/11/11/12)
+  const expectedPerLevel = {1:12, 2:11, 3:11, 4:11, 5:12};
   let perLevelOk = true;
   for(let L=1;L<=5;L++){
     const count = REVEALED_FIXED_CELLS.filter(c=>c.L===L).length;
     if(count !== expectedPerLevel[L]) perLevelOk = false;
   }
-  check('LEVEL別revealed件数が10/12/13/12/10', perLevelOk);
+  check('LEVEL別revealed件数が12/11/11/11/12', perLevelOk);
+
+  // LEVEL別M(未確定セル)件数が順序非依存で4・4・4・0・0であること
+  const mPerLevel = [1,2,3,4,5].map(L => REPAIR_CELLS.filter(c=>c.L===L).length).sort((a,b)=>a-b);
+  check('LEVEL別M件数が順序非依存で0/0/4/4/4', JSON.stringify(mPerLevel) === JSON.stringify([0,0,4,4,4]));
 
   // active line = 未確定セル(REPAIR_CELLS)を1個以上含む109ライン
   // inactive line = 未確定セルを含まない(固定セルのみの)109ライン
@@ -190,30 +194,26 @@ console.log('== presentation state (Prototype 05 — 5:5 Variant B) ==');
 
   check('active line + inactive lineが109本を過不足なく分割する', activeLines.length + inactiveLines.length === 109);
 
-  // 各active lineのrevealed/sealedが1〜2、0のラインがない
-  let minRev=99, maxRev=0, minSeal=99, maxSeal=0, zeroRev=0, zeroSeal=0;
+  // 各active lineがR=2・S=1・M=2であること(Prototype07: 全ラインM=0またはM=2)
+  let activeOk = true;
   for(const line of activeLines){
+    const mIn = line.cells.filter(isUnconfirmedCoord).length;
     const fixedInLine = line.cells.filter(isFixedCoord);
     const rev = fixedInLine.filter(isRevealedCoord).length;
     const seal = fixedInLine.length - rev;
-    minRev = Math.min(minRev, rev); maxRev = Math.max(maxRev, rev);
-    minSeal = Math.min(minSeal, seal); maxSeal = Math.max(maxSeal, seal);
-    if(rev===0) zeroRev++;
-    if(seal===0) zeroSeal++;
+    if(!(mIn===2 && rev===2 && seal===1)) activeOk = false;
   }
-  check('全active lineのrevealed-fixedが1〜2', minRev>=1 && maxRev<=2);
-  check('全active lineのsealed-fixedが1〜2', minSeal>=1 && maxSeal<=2);
-  check('revealed-fixedが0個のactive lineがない', zeroRev===0);
-  check('sealed-fixedが0個のactive lineがない', zeroSeal===0);
+  check('全active line(20本)がR=2・S=1・M=2', activeOk);
 
-  // inactive lineでsealedがちょうど1個のものがない(直接引き算での判明を防止)
-  let sealedExactly1Inactive = 0;
+  // 各inactive lineがM=0かつS!=1であること
+  let inactiveOk = true;
   for(const line of inactiveLines){
+    const mIn = line.cells.filter(isUnconfirmedCoord).length;
     const rev = line.cells.filter(isRevealedCoord).length; // inactive lineは全セル固定
     const seal = 5 - rev;
-    if(seal === 1) sealedExactly1Inactive++;
+    if(!(mIn===0 && seal!==1)) inactiveOk = false;
   }
-  check('sealedがちょうど1個のinactive lineがない', sealedExactly1Inactive === 0);
+  check('全inactive line(89本)がM=0かつS!=1', inactiveOk);
 
   // 各LEVELの全row・columnにrevealed-fixedとsealed-fixedの両方が存在(Variant B)
   let rowColBothOk = true;
@@ -250,17 +250,25 @@ console.log('== measure ==');
   }
   check('正解状態では全ラインが＝', eqCount === lines.length);
 
+  let eqCountInit=0, band1=0, band2=0;
+  overCount=0; underCount=0;
   let intraAbnormal=0, crossAbnormal=0;
   for(const line of lines){
+    const sum = line.cells.reduce((a,cell)=>a+ctx.repairGridValue(initState, cell.z+1, cell.y, cell.x), 0);
     const r = ctx.measureLine(initState, line);
+    if(r==='=') eqCountInit++;
     if(r==='↑') overCount++;
     if(r==='↓') underCount++;
     if(r!=='='){
+      const dist = Math.abs(sum-315);
+      if(dist<=55) band1++; else band2++;
       const zs = new Set(line.cells.map(cell=>cell.z));
       if(zs.size===1) intraAbnormal++; else crossAbnormal++;
     }
   }
-  check('測定結果が正常・過剰・不足で正しい(初期破損状態に↑/↓が両方存在)', overCount>0 && underCount>0);
+  check('初期状態の成立数が89/109(active20本のみ不成立)', eqCountInit === 89);
+  check('初期over/underが10/10', overCount===10 && underCount===10);
+  check('初期band1/band2が11/9', band1===11 && band2===9);
   check('階層内と階層横断の不成立ラインが両方存在', intraAbnormal>0 && crossAbnormal>0);
 
   // 交換の影響ラインだけ測定結果が無効化される、という仕様は main側(Map管理)のロジックなので

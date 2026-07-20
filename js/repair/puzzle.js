@@ -1,52 +1,50 @@
 // puzzle.js — 修復型プロトタイプの「静的な1問」を定義する。
 // 出題生成は行わない。座標・初期破損状態はすべてコード上に固定。
 //
-// Prototype 04: tools/repair/prototype04-candidate.json(seed/samples/gate情報を含む)から
-// 選定した12セル候補を採用。構造gate・human_visible gate(staged path)・validation gate
-// (制約付きbacktrackingで一意解)をすべて満たすことを確認済み。Prototype 03と同一の
-// selection gate/comparatorをseed違いで実行して選定(Search側は変更していない)。
-// 検証手順は tools/repair/prototype02-analyzer.js・search-prototype03.js、候補データ自体は
-// tools/repair/prototype04-candidate.json を参照。
+// Prototype 07: tools/repair/prototype07-candidate.json(M layout ID 0808a60f /
+// presentation mask ID 07b69206 / candidate ID 106b01ad)から選定した12セル候補を採用。
+// 初期状態gate・確定済みmajority方式によるP2 path品質gate・109ライン一意解gateを
+// すべて満たすことを tests/prototype07-candidate-tests.js で検証済み。
+// 正解値(correctValue)はcandidate JSONへ保存せず、既存方式どおりCUBE_DATAから導出する。
 
 const REPAIR_CELLS = [
-  { L:1, r:0, c:0, correctValue:25, initialValue:59 },
-  { L:1, r:0, c:4, correctValue:90, initialValue:90 },
-  { L:1, r:2, c:0, correctValue:42, initialValue:5 },
-  { L:1, r:2, c:4, correctValue:75, initialValue:121 },
-  { L:1, r:4, c:0, correctValue:67, initialValue:75 },
-  { L:1, r:4, c:4, correctValue:5, initialValue:51 },
-  { L:5, r:0, c:0, correctValue:121, initialValue:67 },
-  { L:5, r:0, c:4, correctValue:59, initialValue:36 },
-  { L:5, r:2, c:0, correctValue:51, initialValue:42 },
-  { L:5, r:2, c:4, correctValue:84, initialValue:101 },
-  { L:5, r:4, c:0, correctValue:36, initialValue:84 },
-  { L:5, r:4, c:4, correctValue:101, initialValue:25 },
+  { L:2, r:0, c:2, correctValue:71, initialValue:14 },
+  { L:2, r:0, c:3, correctValue:6, initialValue:112 },
+  { L:2, r:4, c:2, correctValue:14, initialValue:65 },
+  { L:2, r:4, c:3, correctValue:73, initialValue:55 },
+  { L:3, r:0, c:1, correctValue:61, initialValue:120 },
+  { L:3, r:0, c:3, correctValue:76, initialValue:61 },
+  { L:3, r:4, c:1, correctValue:50, initialValue:71 },
+  { L:3, r:4, c:3, correctValue:65, initialValue:50 },
+  { L:4, r:0, c:1, correctValue:53, initialValue:73 },
+  { L:4, r:0, c:2, correctValue:112, initialValue:6 },
+  { L:4, r:4, c:1, correctValue:120, initialValue:76 },
+  { L:4, r:4, c:2, correctValue:55, initialValue:53 },
 ];
 
-// Prototype 05: 固定セル(REPAIR_CELLSに含まれない113セル)のうち、数字を表示する57セル。
-// 選定は tools/repair 側のread-onlyなgeometry probe(座標・109ライン所属のみ使用、
-// 数字・正誤・正解交換・witnessPathは不使用)による決定論的な制約充足解(5:5配置 Variant B)。
-// LEVEL別件数は10/12/13/12/10。各active line(未確定セルを含む109ライン)にrevealed-fixedを
-// 最低1・sealed-fixedを最低1残し、各inactive line(固定セルのみのライン)はsealed-fixedを
-// 0個または2個以上にして単独差分での判明を防ぐ。各LEVELの全row・columnにrevealed-fixedと
-// sealed-fixedの両方が存在する(Variant B)。
+// Prototype 07: 固定セル(REPAIR_CELLSに含まれない113セル)のうち、数字を表示する57セル
+// (presentation mask ID 07b69206)。選定はread-onlyなprobe(座標・109ライン所属のみ使用、
+// 数字・正誤・正解交換・witnessPathは不使用)による段階的厳密最適化で決定。
+// LEVEL別M件数は4/4/4/0/0(順序非依存)。各active line(可動セルを含む109ライン)は
+// revealed-fixedを最低1・sealed-fixedを最低1残し、各inactive line(固定セルのみのライン)は
+// sealed-fixedを0個または2個以上にして単独差分での判明を防ぐ。各LEVELの全row・columnに
+// revealed-fixedとsealed-fixedの両方が存在する。
 const REVEALED_FIXED_CELLS = [
-  { L:1, r:0, c:3 }, { L:1, r:1, c:1 }, { L:1, r:1, c:2 }, { L:1, r:1, c:4 },
-  { L:1, r:2, c:2 }, { L:1, r:2, c:3 }, { L:1, r:3, c:0 }, { L:1, r:3, c:2 },
-  { L:1, r:4, c:1 }, { L:1, r:4, c:3 },
-  { L:2, r:0, c:0 }, { L:2, r:0, c:1 }, { L:2, r:0, c:3 }, { L:2, r:1, c:1 },
-  { L:2, r:1, c:2 }, { L:2, r:1, c:4 }, { L:2, r:2, c:1 }, { L:2, r:2, c:4 },
-  { L:2, r:3, c:0 }, { L:2, r:3, c:2 }, { L:2, r:4, c:2 }, { L:2, r:4, c:4 },
-  { L:3, r:0, c:3 }, { L:3, r:0, c:4 }, { L:3, r:1, c:3 }, { L:3, r:1, c:4 },
-  { L:3, r:2, c:0 }, { L:3, r:2, c:1 }, { L:3, r:2, c:2 }, { L:3, r:3, c:0 },
-  { L:3, r:3, c:1 }, { L:3, r:3, c:2 }, { L:3, r:4, c:0 }, { L:3, r:4, c:1 },
-  { L:3, r:4, c:2 },
-  { L:4, r:0, c:4 }, { L:4, r:1, c:3 }, { L:4, r:1, c:4 }, { L:4, r:2, c:0 },
-  { L:4, r:2, c:1 }, { L:4, r:2, c:2 }, { L:4, r:3, c:0 }, { L:4, r:3, c:1 },
-  { L:4, r:3, c:2 }, { L:4, r:4, c:0 }, { L:4, r:4, c:1 }, { L:4, r:4, c:2 },
-  { L:5, r:0, c:1 }, { L:5, r:0, c:2 }, { L:5, r:1, c:1 }, { L:5, r:1, c:2 },
-  { L:5, r:1, c:4 }, { L:5, r:2, c:3 }, { L:5, r:3, c:0 }, { L:5, r:3, c:1 },
-  { L:5, r:3, c:2 }, { L:5, r:4, c:3 },
+  { L:1, r:0, c:0 }, { L:1, r:0, c:3 }, { L:1, r:0, c:4 }, { L:1, r:1, c:2 },
+  { L:1, r:1, c:3 }, { L:1, r:1, c:4 }, { L:1, r:2, c:1 }, { L:1, r:2, c:3 },
+  { L:1, r:3, c:0 }, { L:1, r:3, c:2 }, { L:1, r:4, c:1 }, { L:1, r:4, c:4 },
+  { L:2, r:0, c:1 }, { L:2, r:0, c:4 }, { L:2, r:1, c:1 }, { L:2, r:1, c:4 },
+  { L:2, r:2, c:2 }, { L:2, r:2, c:3 }, { L:2, r:3, c:0 }, { L:2, r:3, c:2 },
+  { L:2, r:3, c:3 }, { L:2, r:4, c:0 }, { L:2, r:4, c:1 }, { L:3, r:0, c:0 },
+  { L:3, r:0, c:2 }, { L:3, r:1, c:1 }, { L:3, r:1, c:3 }, { L:3, r:2, c:0 },
+  { L:3, r:2, c:1 }, { L:3, r:2, c:4 }, { L:3, r:3, c:3 }, { L:3, r:3, c:4 },
+  { L:3, r:4, c:0 }, { L:3, r:4, c:2 }, { L:4, r:0, c:0 }, { L:4, r:0, c:4 },
+  { L:4, r:1, c:0 }, { L:4, r:1, c:2 }, { L:4, r:1, c:3 }, { L:4, r:2, c:1 },
+  { L:4, r:2, c:3 }, { L:4, r:3, c:1 }, { L:4, r:3, c:2 }, { L:4, r:4, c:3 },
+  { L:4, r:4, c:4 }, { L:5, r:0, c:1 }, { L:5, r:0, c:2 }, { L:5, r:0, c:3 },
+  { L:5, r:1, c:0 }, { L:5, r:1, c:1 }, { L:5, r:2, c:0 }, { L:5, r:2, c:2 },
+  { L:5, r:2, c:4 }, { L:5, r:3, c:1 }, { L:5, r:3, c:4 }, { L:5, r:4, c:2 },
+  { L:5, r:4, c:3 },
 ];
 
 function isRevealedFixed(L,r,c){

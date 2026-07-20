@@ -325,7 +325,7 @@ console.log('== independent_candidate_recheck: Searchの合否フラグを信用
   check('countLineConstrainedSolutionsのisUniqueがtrue', uniqueness.isUnique === true);
 }
 
-console.log('== production_match_tests: Prototype04保存候補とproduction REPAIR_CELLSの完全一致 ==');
+console.log('== production_sanity_tests: production REPAIR_CELLSの構造的健全性(特定Prototypeへ固定依存しない) ==');
 {
   const ctx = {};
   vm.createContext(ctx);
@@ -337,30 +337,6 @@ console.log('== production_match_tests: Prototype04保存候補とproduction REP
   const productionCubeData = ctx.CUBE_DATA;
 
   check('production REPAIR_CELLSが12件', productionCells.length === 12);
-
-  // 座標keyで正規化して比較する(配列順には依存しない)。
-  const coordKey = c => `${c.L}-${c.r}-${c.c}`;
-  const candidateByKey = new Map(savedArtifactP04.cells.map(cell => [
-    `${cell.z + 1}-${cell.y}-${cell.x}`, cell.initialValue,
-  ]));
-  const productionByKey = new Map(productionCells.map(c => [coordKey(c), c.initialValue]));
-
-  const candidateKeys = new Set(candidateByKey.keys());
-  const productionKeys = new Set(productionByKey.keys());
-  const coordSetsMatch = candidateKeys.size === productionKeys.size &&
-    [...candidateKeys].every(k => productionKeys.has(k));
-  check('Prototype04 candidate cellsとproduction REPAIR_CELLSの座標集合が完全一致', coordSetsMatch);
-
-  const noExtraProductionCells = [...productionKeys].every(k => candidateKeys.has(k));
-  check('candidateに存在しない追加REPAIR_CELLSがない', noExtraProductionCells);
-
-  let initialValueMismatchCount = 0;
-  if(coordSetsMatch){
-    for(const [key, candVal] of candidateByKey){
-      if(productionByKey.get(key) !== candVal) initialValueMismatchCount++;
-    }
-  }
-  check('Prototype04 candidateの初期表示値とproductionのinitialValueが各座標で完全一致', initialValueMismatchCount === 0);
 
   const correctValueMismatchCount = productionCells.filter(c =>
     c.correctValue !== productionCubeData[c.L - 1][c.r][c.c]
