@@ -78,6 +78,18 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
 .cross-badge .cb-result.over{color:var(--bad);}
 .cross-badge .cb-result.under{color:var(--under);}
 
+/* ---- 直前交換結果(階層横断ライン)専用panel: board-legend(左下)とは反対の右上へ固定表示する。
+   selectedCellには依存せず、通常のcrossLevelBadgesとは別要素・別配置。 ---- */
+.last-swap-feedback{
+  position:absolute;right:14px;top:14px;z-index:50;max-width:260px;
+  background:rgba(15,11,9,0.82);border:1px solid var(--line);border-radius:5px;
+  padding:6px 10px;font-family:var(--mono);font-size:11px;color:var(--bone-dim);
+}
+.last-swap-feedback.hidden{display:none;}
+.lsf-title{color:var(--bone);font-weight:700;margin-bottom:4px;}
+.lsf-items{display:flex;flex-wrap:wrap;gap:4px;}
+.lsf-items .cross-badge{font-size:10.5px;}
+
 .sidebar{
   width:340px;flex-shrink:0;height:100%;overflow-y:auto;
   background:var(--panel);border-left:1px solid var(--line);padding:18px 16px 40px;
@@ -175,7 +187,7 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
 .iso-cell.repair-completed .cube-face{stroke-dasharray:none;}
 .iso-cell.repair-completed .cube-label{fill:#ffffff;}
 
-/* ---- ライン整合度(常時)。未確定8セルだけに付与される(固定117セルには付けない)。
+/* ---- ライン整合度(常時)。未確定セルだけに付与される(固定セルには付けない)。
    cube-faceのfillには一切触れず、内側へ縮めた透明輪郭のstrokeだけで示す。 ---- */
 .iso-cell.line-health-ok .cell-diag-outline{stroke:var(--ok);stroke-width:2.2;}
 .iso-cell.line-health-bad .cell-diag-outline{stroke:var(--bad);stroke-width:2.2;}
@@ -231,11 +243,15 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
     </div>
     <div class="board-legend">↑ <b class="over">315超過</b>　↓ <b class="under">315未満</b>　記号なし 315</div>
     <div id="crossLevelBadges"></div>
+    <div id="lastSwapFeedback" class="last-swap-feedback hidden" aria-live="polite">
+      <div class="lsf-title">直前の交換</div>
+      <div id="lastSwapFeedbackItems" class="lsf-items"></div>
+    </div>
   </div>
 
   <aside class="sidebar">
     <div class="side-title">修復型パズル(試作)</div>
-    <div class="side-sub">REPAIR PROTOTYPE — 固定セル117個・未確定セル8個</div>
+    <div class="side-sub">REPAIR PROTOTYPE — 固定セル113個・未確定セル12個</div>
 
     <div class="side-section">
       <button id="resetBtn" class="ghost full">リセット(初期破損状態に戻す)</button>
@@ -257,10 +273,13 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
         <li>正しい未確定マスと間違った未確定マスは同じ表示です</li>
       </ul>
       <div class="caveat" style="margin-top:10px;">
-        枠が破線の8マスだけ未確定です。数字の色や見た目で正誤は分かりません。
-        未確定マスの縁の色(緑/赤)は「そのマスを通るラインが全部315かどうか」を示すだけで、
-        マス単体の正誤ではありません。行・列・層内対角線は不成立(↑/↓)のときだけ各盤面の
-        側面・角に記号が出ます。柱や空間対角線などの状態はマスを選ぶと近くにバッジで表示されます。
+        数字が見えない113マスは固定で交換できません。数字が見える12マスの未確定マスは、
+        そのマス同士だけ交換できます。マスの縁の色(緑/赤)は「そのマスを通るラインが全部
+        315かどうか」を示すだけで、マス単体の正誤ではありません。行・列・層内対角線は
+        不成立(↑/↓)のときだけ各盤面の側面・角に記号が出ます。柱や空間対角線などの状態は
+        マスを選ぶと近くにバッジで表示されます。交換直後は影響したラインへ、近＝315に近づいた
+        ／遠＝315から離れた／成立＝315になった／同＝315との差が変化なし、を現在の記号と
+        一緒に一時表示します。
       </div>
     </div>
   </aside>

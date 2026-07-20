@@ -13,7 +13,7 @@
 //
 // ライン状態(＝/↑/↓)は測定操作ではなく、常に現在の盤面から自動計算する
 // (measure.jsのmeasureLineをそのまま毎回呼ぶだけで「測定履歴」は持たない)。
-// セルの常時diag輪郭(line-health)は未確定8セルだけに付与し、固定117セルには付けない。
+// セルの常時diag輪郭(line-health)は未確定セルだけに付与し、固定セルには付けない。
 
 const ALL_LINES = buildLines109();
 const SWAP_ANIM_MS = 220;
@@ -31,6 +31,11 @@ let cleared = false;
 let celebrating = false;     // クリア演出(連鎖発光)の最中かどうか
 let animating = false;       // タイル交換アニメーション中は追加のクリック/Undo/Resetを無視する
 let opGeneration = 0;        // Reset等で進行中の交換/Undo/演出を無効化するための世代番号
+// 直前の成功交換で影響したライン別結果(Map<lineKey, 'unchanged'|'solved'|'closer'|'farther'> | null)。
+// analyzeAffectedLineChangesの戻り値だけを保持し、正確な合計値・偏差量は持たない。
+// セル選択・選択解除・Escapeでは消さない。Undo完了・Reset・次の成功交換の完了時にだけ更新/消去する。
+let lastSwapFeedback = null;
+const SWAP_CHANGE_LABEL = { unchanged:'同', solved:'成立', closer:'近', farther:'遠' };
 
 function cellKeyEq(a,b){ return !!a && !!b && a.L===b.L && a.r===b.r && a.c===b.c; }
 function cellDomKey(L,r,c){ return `${L}-${r}-${c}`; }
@@ -70,7 +75,7 @@ function computeAllLineStatuses(){
   return map;
 }
 
-// line-healthは未確定8セルだけが対象(固定117セルには一切付与しない)。
+// line-healthは未確定セルだけが対象(固定セルには一切付与しない)。
 function computeCellHealth(lineStatuses){
   const health = {};
   for(const cell of REPAIR_CELLS){
@@ -156,7 +161,10 @@ function triggerSwap(a, b){
 
   return animateSwap(a, b, valueA, valueB).then(()=>{
     if(gen !== opGeneration) return; // Resetなどで無効化された古い完了処理は反映しない
+    const beforeGrid = repairState; // 交換直前のgrid(再代入前の参照)
     repairState = swapRepairCells(repairState, a, b);
+    const feedback = analyzeAffectedLineChanges(ALL_LINES, beforeGrid, repairState, [a, b]);
+    lastSwapFeedback = new Map(feedback.map(f => [f.line.key, f.change]));
     highlightedLineKey = null; // 交換確定で古いラインフォーカスを解除する
     animating = false;
 
@@ -189,6 +197,7 @@ function undoSwap(){
     highlightedLineKey = snap.highlightedLineKey;
     cleared = snap.cleared;
     celebrating = false;
+    lastSwapFeedback = null; // Undo完了時は直前結果を消す
     document.getElementById('clearOverlay').classList.toggle('hidden', !cleared);
     animating = false;
     renderAll();
@@ -201,7 +210,7 @@ function undoSwap(){
 function runCelebration(gen){
   celebrating = true;
   updateLockUI();
-  renderAll(); // 成立ライン109/109・未確定8セルの「修復完了」見た目をここで反映する
+  renderAll(); // 成立ライン109/109・未確定セルの「修復完了」見た目をここで反映する
 
   const reduced = prefersReducedMotion();
   const stagger = reduced ? 0 : 220;
@@ -342,6 +351,7 @@ function resetPuzzle(){
   history = [];
   cleared = false;
   celebrating = false;
+  lastSwapFeedback = null; // Reset時は直前結果を消す
   document.querySelectorAll('.swap-ghost').forEach(el => el.remove());
   document.querySelectorAll('.level-slot.wave-glow').forEach(el => el.classList.remove('wave-glow'));
   document.getElementById('clearOverlay').classList.add('hidden');
@@ -361,6 +371,7 @@ function renderAll(){
   renderBoard(lineStatuses, cellHealth);
   renderFlatLineLabels(lineStatuses);
   renderCrossLevelBadges(lineStatuses);
+  renderLastSwapFeedback();
   renderProgress(lineStatuses);
   updateLockUI();
 }
@@ -377,11 +388,11 @@ function renderBoard(lineStatuses, cellHealth){
         const key = cellDomKey(L,r,c);
         g.dataset.key = key;
 
+        const unlocked = isRepairUnlocked(L,r,c);
         const value = repairGridValue(repairState, L, r, c);
         const label = g.querySelector('.cube-label');
-        if(label) label.textContent = value;
+        if(label) label.textContent = unlocked ? value : '';
 
-        const unlocked = isRepairUnlocked(L,r,c);
         g.classList.remove('empty');
         g.classList.toggle('given', !unlocked);
         g.classList.toggle('repair-unlocked', unlocked);
@@ -415,10 +426,30 @@ function setDirectText(el, text){
 function applyFlatLabel(el, hit, line, lineStatuses){
   if(!line) return;
   const status = lineStatuses.get(line.key);
+  const change = lastSwapFeedback ? lastSwapFeedback.get(line.key) : undefined;
   el.classList.remove('stat-over','stat-under');
 
-  if(status === '='){
+  if(status === '=' && change === undefined){
     setDirectText(el, '');
+    el.style.pointerEvents = 'none';
+    delete el.dataset.lineKey;
+    delete el.dataset.swapChange;
+    if(hit){ hit.style.pointerEvents = 'none'; delete hit.dataset.lineKey; }
+    const title = el.querySelector('title');
+    if(title) title.remove();
+    return;
+  }
+
+  if(status !== '='){
+    el.classList.add(`stat-${diagStatusClass(status)}`);
+  }
+
+  setDirectText(el, change !== undefined ? `${status} ${SWAP_CHANGE_LABEL[change]}` : status);
+  if(change !== undefined) el.dataset.swapChange = change;
+  else delete el.dataset.swapChange;
+
+  if(status === '='){
+    // 通常は非表示の成立ラインだが、直前結果がある間だけ一時的に表示する(クリック対象にはしない)。
     el.style.pointerEvents = 'none';
     delete el.dataset.lineKey;
     if(hit){ hit.style.pointerEvents = 'none'; delete hit.dataset.lineKey; }
@@ -427,8 +458,6 @@ function applyFlatLabel(el, hit, line, lineStatuses){
     return;
   }
 
-  el.classList.add(`stat-${diagStatusClass(status)}`);
-  setDirectText(el, status);
   el.style.pointerEvents = 'auto';
   el.dataset.lineKey = line.key;
   if(hit){ hit.style.pointerEvents = 'auto'; hit.dataset.lineKey = line.key; }
@@ -538,6 +567,45 @@ function renderCrossLevelBadges(lineStatuses){
 
   container.style.left = left + 'px';
   container.style.top = top + 'px';
+}
+
+// 直前の成功交換で影響した「階層横断49ライン」だけを、selectedCellに依存しない固定panelへ表示する。
+// 通常のcrossLevelBadges(選択セル追従・毎回全消去)とは別要素・別ライフサイクル。
+// lastSwapFeedbackが更新/消去されるたびにrenderAll経由で呼ばれ、そのまま追従する。
+function renderLastSwapFeedback(){
+  const panel = document.getElementById('lastSwapFeedback');
+  const itemsContainer = document.getElementById('lastSwapFeedbackItems');
+  itemsContainer.innerHTML = '';
+
+  const crossEntries = lastSwapFeedback
+    ? [...lastSwapFeedback.entries()]
+        .map(([lineKey, change]) => ({ line: ALL_LINES.find(l=>l.key===lineKey), change }))
+        .filter(e => e.line && CROSS_LEVEL_TYPES.has(e.line.type))
+    : [];
+
+  if(crossEntries.length === 0){
+    panel.classList.add('hidden');
+    return;
+  }
+
+  panel.classList.remove('hidden');
+  for(const { line, change } of crossEntries){
+    const status = diagnoseLine(line);
+    const badge = document.createElement('div');
+    badge.className = 'cross-badge';
+    badge.dataset.lineKey = line.key;
+    badge.dataset.swapChange = change;
+    const label = document.createElement('span');
+    label.className = 'cb-label';
+    label.textContent = lineLabel(line);
+    const result = document.createElement('span');
+    result.className = 'cb-result';
+    result.textContent = `${status} ${SWAP_CHANGE_LABEL[change]}`;
+    badge.appendChild(label);
+    badge.appendChild(result);
+    badge.addEventListener('click', ()=> toggleLineHighlight(line.key));
+    itemsContainer.appendChild(badge);
+  }
 }
 
 // サイドバーの成立ライン総数(ALL_LINESの独立集計。盤面/LEVEL表示へは出さない)。

@@ -1,28 +1,26 @@
 // puzzle.js — 修復型プロトタイプの「静的な1問」を定義する。
 // 出題生成は行わない。座標・初期破損状態はすべてコード上に固定。
 //
-// Prototype 03: tools/repair/prototype03-candidate.json(seed/samples/gate情報を含む)から
-// 選定した12セル候補を採用。座標は中心対称な軸部分集合(サイズ2または3)の2×2×3直積構造。
-// 構造gate(未確定セル数12、未確定1件ラインが0本、直接引き算で確定不能、正しい位置1件以上、
-// 誤配置複数LEVEL分散、↑↓両存在、階層内外異常両存在)、human_visible gate(strong compatible
-// swapだけを辿るstaged pathが存在し、rootのstrong compatible数が1〜3、交換手数が7または8)、
-// validation gate(制約付きbacktrackingで一意解)をすべて満たすことを確認済み。
+// Prototype 04: tools/repair/prototype04-candidate.json(seed/samples/gate情報を含む)から
+// 選定した12セル候補を採用。構造gate・human_visible gate(staged path)・validation gate
+// (制約付きbacktrackingで一意解)をすべて満たすことを確認済み。Prototype 03と同一の
+// selection gate/comparatorをseed違いで実行して選定(Search側は変更していない)。
 // 検証手順は tools/repair/prototype02-analyzer.js・search-prototype03.js、候補データ自体は
-// tools/repair/prototype03-candidate.json を参照。
+// tools/repair/prototype04-candidate.json を参照。
 
 const REPAIR_CELLS = [
-  { L:1, r:0, c:0, correctValue:25, initialValue:121 },
-  { L:1, r:0, c:4, correctValue:90, initialValue:86 },
-  { L:1, r:4, c:0, correctValue:67, initialValue:101 },
-  { L:1, r:4, c:4, correctValue:5, initialValue:36 },
-  { L:3, r:0, c:0, correctValue:47, initialValue:47 },
-  { L:3, r:0, c:4, correctValue:86, initialValue:79 },
-  { L:3, r:4, c:0, correctValue:40, initialValue:67 },
-  { L:3, r:4, c:4, correctValue:79, initialValue:90 },
-  { L:5, r:0, c:0, correctValue:121, initialValue:5 },
-  { L:5, r:0, c:4, correctValue:59, initialValue:59 },
-  { L:5, r:4, c:0, correctValue:36, initialValue:25 },
-  { L:5, r:4, c:4, correctValue:101, initialValue:40 },
+  { L:1, r:0, c:0, correctValue:25, initialValue:59 },
+  { L:1, r:0, c:4, correctValue:90, initialValue:90 },
+  { L:1, r:2, c:0, correctValue:42, initialValue:5 },
+  { L:1, r:2, c:4, correctValue:75, initialValue:121 },
+  { L:1, r:4, c:0, correctValue:67, initialValue:75 },
+  { L:1, r:4, c:4, correctValue:5, initialValue:51 },
+  { L:5, r:0, c:0, correctValue:121, initialValue:67 },
+  { L:5, r:0, c:4, correctValue:59, initialValue:36 },
+  { L:5, r:2, c:0, correctValue:51, initialValue:42 },
+  { L:5, r:2, c:4, correctValue:84, initialValue:101 },
+  { L:5, r:4, c:0, correctValue:36, initialValue:84 },
+  { L:5, r:4, c:4, correctValue:101, initialValue:25 },
 ];
 
 function repairCellKey(L,r,c){ return `${L}-${r}-${c}`; }

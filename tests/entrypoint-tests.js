@@ -24,8 +24,13 @@ console.log('== entrypoint (index.html) ==');
   const forbidden = ['ふつう','むずかしい','とても難しい','難易度選択','新しい問題','候補プール','組み合わせ検索','お助け機能','ランダム問題生成','中クリック','Shift＋クリック','測定履歴','測定機','id="boardHud"','id="hudLineList"','id="hudDiagTitle"'];
   check('index.htmlに旧3難易度ボタン等・旧HUDが存在しない', forbidden.every(s => !html.includes(s)));
 
-  const required = ['修復型パズル','固定セル117個','未確定セル8個','リセット','Undo'];
+  const required = ['修復型パズル','固定セル113個','未確定セル12個','リセット','Undo'];
   check('index.htmlに必須表記が揃っている', required.every(s => html.includes(s)));
+
+  const staleCounts = ['固定セル117個','未確定セル8個'];
+  check('Prototype 01由来の古い件数表記(117/8)が残っていない', staleCounts.every(s => !html.includes(s)));
+
+  check('近・遠・成立・同の簡潔な説明が存在する', ['近','遠','成立','同'].every(s => html.includes(s)) && /315に近づいた/.test(html) && /315から離れた/.test(html));
 
   // 診断一覧(旧board-hud)がサイドバーへ戻されていないこと、盤面内の凡例(board-legend)が存在すること。
   const asideMatch = html.match(/<aside[\s\S]*?<\/aside>/);
@@ -33,6 +38,14 @@ console.log('== entrypoint (index.html) ==');
   check('サイドバーに診断一覧・測定履歴が存在しない', !/id="lineList"|id="hudLineList"|id="measuredList"/.test(asideHtml));
   check('board-area内に凡例(board-legend)が存在する', /class="board-legend"/.test(html));
   check('board-area内に立体ラインバッジ用コンテナ(crossLevelBadges)が存在する', /id="crossLevelBadges"/.test(html));
+  check('board-area内に直前交換結果panelコンテナ(lastSwapFeedback)が存在する', /id="lastSwapFeedback"/.test(html));
+  check('直前交換結果panel内に項目コンテナ(lastSwapFeedbackItems)が存在する', /id="lastSwapFeedbackItems"/.test(html));
+  check('直前交換結果panelがaria-live=polite', /id="lastSwapFeedback"[^>]*aria-live="polite"/.test(html));
+  check('直前交換結果panelが初期状態で非表示', /id="lastSwapFeedback"[^>]*class="[^"]*hidden[^"]*"/.test(html));
+  check('repair-main.jsがlastSwapFeedback/lastSwapFeedbackItemsを参照している', (()=>{
+    const mainJs = fs.readFileSync(path.join(root,'js/repair/repair-main.js'),'utf8');
+    return /getElementById\('lastSwapFeedback'\)/.test(mainJs) && /getElementById\('lastSwapFeedbackItems'\)/.test(mainJs);
+  })());
 
   // LEVEL表示CSSの復元
   const tierBlock = html.match(/\.tier-label\s*\{[^}]*\}/);

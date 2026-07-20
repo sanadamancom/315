@@ -39,6 +39,8 @@ vm.runInContext(`
   globalThis.isRepairSolved = isRepairSolved;
   globalThis.measureLine = measureLine;
   globalThis.linesThroughCell = linesThroughCell;
+  globalThis.classifyLineChange = classifyLineChange;
+  globalThis.analyzeAffectedLineChanges = analyzeAffectedLineChanges;
 `, ctx);
 
 let pass = 0, fail = 0;
@@ -167,6 +169,86 @@ console.log('== measure ==');
   check('交換の影響ラインを正しく特定できる', touching.length > 0 && touching.every(l =>
     l.cells.some(c => c.z===affectedCell.L-1 && c.y===affectedCell.r && c.x===affectedCell.c)
   ));
+}
+
+console.log('== classifyLineChange ==');
+{
+  const f = ctx.classifyLineChange;
+
+  // 非成立状態で距離が同じならunchanged(315をまたぐ対称ケースも含む)
+  check('距離が同じ(未満側→超過側、絶対距離同じ)はunchanged', f(310, 320) === 'unchanged');
+  check('距離が同じ(値が変わらない)はunchanged', f(300, 300) === 'unchanged');
+
+  // 交換前後とも315ならunchanged
+  check('交換前後とも315ならunchanged', f(315, 315) === 'unchanged');
+
+  // 非成立から315ならsolved
+  check('超過側から315に到達したらsolved', f(320, 315) === 'solved');
+  check('未満側から315に到達したらsolved', f(300, 315) === 'solved');
+
+  // 接近(closer)
+  check('超過側で315に接近したらcloser', f(325, 320) === 'closer');
+  check('未満側で315に接近したらcloser', f(295, 300) === 'closer');
+  check('315をまたいで接近したらcloser(超過側→未満側で距離縮小)', f(322, 310) === 'closer');
+  check('315をまたいで接近したらcloser(未満側→超過側で距離縮小)', f(305, 318) === 'closer');
+
+  // 離反(farther)
+  check('315から離れたらfarther', f(316, 330) === 'farther');
+  check('距離が増える交差ならfarther(超過側→未満側で距離拡大)', f(317, 295) === 'farther');
+  check('距離が増える交差ならfarther(未満側→超過側で距離拡大)', f(313, 340) === 'farther');
+}
+
+console.log('== analyzeAffectedLineChanges ==');
+{
+  // productionのREPAIR_CELLS座標をキーの生成源としてのみ使う(座標・数字自体はハードコードしない、
+  // candidate固有の正解値/初期値は一切参照しない)。値は本テストが独自に割り当てる。
+  const cells = ctx.REPAIR_CELLS.slice(0, 6).map(c => ({ L:c.L, r:c.r, c:c.c }));
+  const [A, B, OA, OB, U1, U2] = cells;
+  const toXYZ = (cell) => ({ z: cell.L-1, y: cell.r, x: cell.c });
+  const key = (cell) => ctx.repairCellKey(cell.L, cell.r, cell.c);
+
+  const lineOnlyA   = { key:'test-only-a',   cells:[toXYZ(A), toXYZ(OA)] };
+  const lineOnlyB   = { key:'test-only-b',   cells:[toXYZ(B), toXYZ(OB)] };
+  const lineShared  = { key:'test-shared',   cells:[toXYZ(A), toXYZ(B)] };
+  const lineUnrelated = { key:'test-unrelated', cells:[toXYZ(U1), toXYZ(U2)] };
+
+  const structGrid = () => ({
+    [key(A)]:10, [key(B)]:20, [key(OA)]:5, [key(OB)]:7, [key(U1)]:1, [key(U2)]:2,
+  });
+  const linesInput = [lineOnlyB, lineUnrelated, lineShared, lineOnlyA];
+  const before = structGrid();
+  const after = structGrid();
+  const swapped = [A, B];
+
+  const linesSnapshot = JSON.parse(JSON.stringify(linesInput));
+  const beforeSnapshot = JSON.parse(JSON.stringify(before));
+  const afterSnapshot = JSON.parse(JSON.stringify(after));
+
+  const result = ctx.analyzeAffectedLineChanges(linesInput, before, after, swapped);
+
+  check('片方(A)だけを含むラインを抽出する', result.some(r => r.line === lineOnlyA));
+  check('もう片方(B)だけを含むラインを抽出する', result.some(r => r.line === lineOnlyB));
+  check('両セルを含む共有ラインを1件だけ返す', result.filter(r => r.line === lineShared).length === 1);
+  check('無関係なラインを除外する', result.every(r => r.line !== lineUnrelated));
+  check('入力linesの順序を維持する', result.map(r=>r.line.key).join(',') === [lineOnlyB, lineShared, lineOnlyA].map(l=>l.key).join(','));
+  check('戻り値に正確な合計や偏差量を含めない', result.every(r => {
+    const keys = Object.keys(r);
+    return keys.every(k => k==='line' || k==='change') && typeof r.change === 'string';
+  }));
+  check('入力linesを変更しない', JSON.stringify(linesInput) === JSON.stringify(linesSnapshot));
+  check('入力gridを変更しない', JSON.stringify(before) === JSON.stringify(beforeSnapshot) && JSON.stringify(after) === JSON.stringify(afterSnapshot));
+
+  // ---- 質的変化(unchanged/solved/closer/farther)の伝播確認 ----
+  // 1セルだけのラインで計算を単純化する(合成fixtureであり、CUBE_DATA/candidate値には触れない)。
+  function changeCase(beforeVal, afterVal){
+    const line = { key:'test-single', cells:[toXYZ(A)] };
+    const r = ctx.analyzeAffectedLineChanges([line], { [key(A)]: beforeVal }, { [key(A)]: afterVal }, [A, B]);
+    return r[0].change;
+  }
+  check('unchangedを返す', changeCase(310, 320) === 'unchanged');
+  check('solvedを返す', changeCase(300, 315) === 'solved');
+  check('closerを返す', changeCase(300, 310) === 'closer');
+  check('fartherを返す', changeCase(310, 290) === 'farther');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

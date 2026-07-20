@@ -458,7 +458,287 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
     check('Resetで初期状態へ戻る', resetMatchesInitial === true);
   }
 
-  // ---- 12) 正誤リーク確認 ----
+  // ---- 12) 固定セルの数字非表示 ----
+  {
+    const { dom } = await loadPage();
+    const { doc, evalW, click } = helpers(dom);
+
+    const lockedLabelsAllEmpty = evalW(`
+      (function(){
+        let bad = 0;
+        for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+          if(isRepairUnlocked(L,r,c)) continue;
+          const el = document.querySelector('.iso-cell[data-l="'+L+'"][data-r="'+r+'"][data-c="'+c+'"]');
+          const label = el.querySelector('.cube-label');
+          if(!label || label.textContent !== '') bad++;
+        }
+        return bad;
+      })()
+    `);
+    check('固定セルのcube-labelが全て空文字', lockedLabelsAllEmpty === 0);
+
+    const unlockedLabelsShowValue = evalW(`
+      (function(){
+        let bad = 0;
+        for(const cell of REPAIR_CELLS){
+          const el = document.querySelector('.iso-cell[data-l="'+cell.L+'"][data-r="'+cell.r+'"][data-c="'+cell.c+'"]');
+          const label = el.querySelector('.cube-label');
+          const expect = String(repairGridValue(repairState, cell.L, cell.r, cell.c));
+          if(!label || label.textContent !== expect) bad++;
+        }
+        return bad;
+      })()
+    `);
+    check('未確定セルは従来どおり数字が表示される', unlockedLabelsShowValue === 0);
+
+    const lockedNoExposure = evalW(`
+      (function(){
+        let bad = 0;
+        for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+          if(isRepairUnlocked(L,r,c)) continue;
+          const el = document.querySelector('.iso-cell[data-l="'+L+'"][data-r="'+r+'"][data-c="'+c+'"]');
+          const val = repairGridValue(repairState, L, r, c);
+          const html = el.outerHTML;
+          if(html.includes('>'+val+'<') || el.getAttribute('aria-label') || el.getAttribute('title')) bad++;
+        }
+        return bad;
+      })()
+    `);
+    check('固定セルの内部値がDOM(aria-label/title含む)へ露出しない', lockedNoExposure === 0);
+
+    // 固定セルの選択・ラインフォーカスは維持されること(数字非表示後も観察対象として機能する)
+    // ハードコード座標ではなく、REPAIR_CELLSに含まれない座標を動的に検出する。
+    const lockedCoord = evalW(`
+      (function(){
+        for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+          if(!isRepairUnlocked(L,r,c)) return {L,r,c};
+        }
+        return null;
+      })()
+    `);
+    click(lockedCoord.L, lockedCoord.r, lockedCoord.c);
+    const selected = doc.querySelector(`.iso-cell[data-l="${lockedCoord.L}"][data-r="${lockedCoord.r}"][data-c="${lockedCoord.c}"]`);
+    check('固定セルを選択できる(選択classが付く)', selected.classList.contains('cell-selected'));
+  }
+
+  // ---- 14) 直前交換結果のライン別表示(平面60ライン) ----
+  {
+    const { dom } = await loadPage();
+    const { doc, evalW } = helpers(dom);
+
+    await evalW(`triggerSwap(REPAIR_CELLS[0], REPAIR_CELLS[1])`);
+
+    const mismatch = evalW(`
+      (function(){
+        function directText(el){ let o=''; el.childNodes.forEach(n=>{ if(n.nodeType===3) o+=n.textContent; }); return o; }
+        const CHANGE_LABEL = { unchanged:'同', solved:'成立', closer:'近', farther:'遠' };
+        let bad = 0, feedbackCount = 0;
+        function checkLine(el, line){
+          const status = measureLine(repairState, line);
+          const change = lastSwapFeedback ? lastSwapFeedback.get(line.key) : undefined;
+          const text = directText(el);
+          if(change !== undefined){
+            feedbackCount++;
+            if(text !== status + ' ' + CHANGE_LABEL[change]) bad++;
+            if(el.dataset.swapChange !== change) bad++;
+            if(status === '='){
+              if(el.style.pointerEvents !== 'none' || el.dataset.lineKey) bad++;
+            } else {
+              if(el.style.pointerEvents !== 'auto' || el.dataset.lineKey !== line.key) bad++;
+            }
+          } else {
+            if(status === '=' ? text !== '' : text !== status) bad++;
+            if(el.dataset.swapChange) bad++;
+          }
+        }
+        document.querySelectorAll('.row-wall-label').forEach(el=>{
+          const L=Number(el.dataset.l), r=Number(el.dataset.r);
+          checkLine(el, ALL_LINES.find(l=>l.type==='row'&&l.cells[0].z===L-1&&l.cells[0].y===r));
+        });
+        document.querySelectorAll('.col-wall-label').forEach(el=>{
+          const L=Number(el.dataset.l), c=Number(el.dataset.c);
+          checkLine(el, ALL_LINES.find(l=>l.type==='col'&&l.cells[0].z===L-1&&l.cells[0].x===c));
+        });
+        document.querySelectorAll('.diag-sum-main').forEach(el=>{
+          const L=Number(el.dataset.l);
+          checkLine(el, ALL_LINES.find(l=>l.type==='xy-main'&&l.cells[0].z===L-1));
+        });
+        document.querySelectorAll('.diag-sum-anti').forEach(el=>{
+          const L=Number(el.dataset.l);
+          checkLine(el, ALL_LINES.find(l=>l.type==='xy-anti'&&l.cells[0].z===L-1));
+        });
+        return { bad, feedbackCount };
+      })()
+    `);
+    check('交換後に影響した階層内ラインへ、現在の診断記号と結果文字が組み合わせて表示される', mismatch.bad === 0 && mismatch.feedbackCount > 0);
+    check('無関係なラインに結果が付かず、正確な合計・偏差量も表示されない(直前チェックに包含)', mismatch.bad === 0);
+
+    // 成立(＝)ラインは通常非表示だが、直前結果がある間だけ一時的に表示されることを、
+    // 状態を直接操作してcandidateに依存せず確認する(初期状態には成立中の行ラインが多数存在する)。
+    const solvedDisplay = evalW(`
+      (function(){
+        function directText(el){ let o=''; el.childNodes.forEach(n=>{ if(n.nodeType===3) o+=n.textContent; }); return o; }
+        const eqLine = ALL_LINES.find(l => l.type==='row' && measureLine(repairState, l) === '=');
+        if(!eqLine) return { found:false };
+        lastSwapFeedback = new Map([[eqLine.key, 'solved']]);
+        renderAll();
+        const el = document.querySelector('.row-wall-label[data-l="'+(eqLine.cells[0].z+1)+'"][data-r="'+eqLine.cells[0].y+'"]');
+        return { found:true, text: directText(el), pointerEvents: el.style.pointerEvents, hasLineKey: !!el.dataset.lineKey };
+      })()
+    `);
+    check('成立した影響ラインが一時的に表示される', solvedDisplay.found && solvedDisplay.text === '= 成立' && solvedDisplay.pointerEvents === 'none' && !solvedDisplay.hasLineKey);
+
+    const lockedStillEmpty = evalW(`
+      (function(){
+        let bad = 0;
+        for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+          if(isRepairUnlocked(L,r,c)) continue;
+          const el = document.querySelector('.iso-cell[data-l="'+L+'"][data-r="'+r+'"][data-c="'+c+'"]');
+          const label = el.querySelector('.cube-label');
+          if(!label || label.textContent !== '') bad++;
+        }
+        return bad;
+      })()
+    `);
+    check('固定数字非表示が維持される', lockedStillEmpty === 0);
+  }
+
+  // ---- 15) 直前交換結果のライフサイクル(選択維持・Undo/Reset・次交換での置換) ----
+  {
+    const { dom } = await loadPage();
+    const { doc, evalW, click } = helpers(dom);
+
+    await evalW(`triggerSwap(REPAIR_CELLS[0], REPAIR_CELLS[1])`);
+    const sizeAfterSwap = evalW('lastSwapFeedback ? lastSwapFeedback.size : 0');
+
+    const lockedCoord = evalW(`
+      (function(){
+        for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+          if(!isRepairUnlocked(L,r,c)) return {L,r,c};
+        }
+        return null;
+      })()
+    `);
+    click(lockedCoord.L, lockedCoord.r, lockedCoord.c); // 選択
+    const sizeAfterSelect = evalW('lastSwapFeedback ? lastSwapFeedback.size : 0');
+    click(lockedCoord.L, lockedCoord.r, lockedCoord.c); // 再クリックで選択解除
+    const sizeAfterDeselect = evalW('lastSwapFeedback ? lastSwapFeedback.size : 0');
+    check('セル選択と選択解除で結果が残る', sizeAfterSwap > 0 && sizeAfterSelect === sizeAfterSwap && sizeAfterDeselect === sizeAfterSwap);
+
+    await evalW('undoSwap()');
+    const afterUndo = evalW('lastSwapFeedback');
+    check('Undoで結果が消える', afterUndo === null);
+
+    await evalW(`triggerSwap(REPAIR_CELLS[0], REPAIR_CELLS[1])`);
+    evalW('resetPuzzle()');
+    const afterReset = evalW('lastSwapFeedback');
+    check('Resetで結果が消える', afterReset === null);
+
+    await evalW(`triggerSwap(REPAIR_CELLS[0], REPAIR_CELLS[1])`);
+    await evalW(`triggerSwap(REPAIR_CELLS[2], REPAIR_CELLS[3])`);
+    const replaceCheck = evalW(`
+      (function(){
+        const keys = [...lastSwapFeedback.keys()];
+        const cellsAB = [REPAIR_CELLS[2], REPAIR_CELLS[3]];
+        const allTouchAB = keys.every(k => {
+          const line = ALL_LINES.find(l=>l.key===k);
+          return cellsAB.some(cell => lineTouchesCell(line, cell.L, cell.r, cell.c));
+        });
+        return { size: lastSwapFeedback.size, allTouchAB };
+      })()
+    `);
+    check('次の交換で前回結果が置き換わる(新しい交換に無関係な旧結果が残らない)', replaceCheck.size > 0 && replaceCheck.allTouchAB);
+  }
+
+  // ---- 16) 直前交換結果panel(階層横断49ライン、selectedCellに依存しない固定表示) ----
+  {
+    const { dom } = await loadPage();
+    const { doc, evalW, click } = helpers(dom);
+
+    await evalW(`triggerSwap(REPAIR_CELLS[0], REPAIR_CELLS[1])`);
+
+    const panelHiddenAfterSwap = doc.getElementById('lastSwapFeedback').classList.contains('hidden');
+    check('交換後にpanelが表示される', panelHiddenAfterSwap === false);
+
+    const itemCount = doc.querySelectorAll('#lastSwapFeedbackItems .cross-badge').length;
+    const crossCount = evalW(`
+      [...lastSwapFeedback.keys()].filter(k=>{
+        const l = ALL_LINES.find(x=>x.key===k);
+        return l && ['pillar','xz-main','xz-anti','yz-main','yz-anti','space'].includes(l.type);
+      }).length
+    `);
+    check('影響した階層横断ラインだけが表示される(件数一致)', itemCount === crossCount && crossCount > 0);
+
+    const badgeCheck = evalW(`
+      (function(){
+        const CHANGE_LABEL = { unchanged:'同', solved:'成立', closer:'近', farther:'遠' };
+        let bad = 0;
+        document.querySelectorAll('#lastSwapFeedbackItems .cross-badge').forEach(el=>{
+          const key = el.dataset.lineKey;
+          const change = el.dataset.swapChange;
+          const line = ALL_LINES.find(l=>l.key===key);
+          const status = measureLine(repairState, line);
+          const resultText = el.querySelector('.cb-result').textContent;
+          if(resultText !== status + ' ' + CHANGE_LABEL[change]) bad++;
+          if(/[0-9]/.test(resultText)) bad++; // 結果表示に合計・偏差量らしき数字が出ていないか
+        });
+        return bad;
+      })()
+    `);
+    check('現在診断と質的変化が同時表示され、正確な合計や偏差量が表示されない', badgeCheck === 0);
+
+    const firstBadgeKey = evalW(`document.querySelector('#lastSwapFeedbackItems .cross-badge').dataset.lineKey`);
+    doc.querySelector('#lastSwapFeedbackItems .cross-badge').dispatchEvent(new dom.window.MouseEvent('click', {bubbles:true}));
+    const targets = doc.querySelectorAll('.iso-cell.line-focus-target');
+    check('badgeクリックでラインフォーカスできる', targets.length === 5);
+    doc.querySelector(`#lastSwapFeedbackItems .cross-badge[data-line-key="${firstBadgeKey}"]`).dispatchEvent(new dom.window.MouseEvent('click', {bubbles:true})); // 解除
+
+    const lockedCoord = evalW(`
+      (function(){
+        for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+          if(!isRepairUnlocked(L,r,c)) return {L,r,c};
+        }
+        return null;
+      })()
+    `);
+    click(lockedCoord.L, lockedCoord.r, lockedCoord.c);
+    const hiddenAfterSelect = doc.getElementById('lastSwapFeedback').classList.contains('hidden');
+    click(lockedCoord.L, lockedCoord.r, lockedCoord.c);
+    const hiddenAfterDeselect = doc.getElementById('lastSwapFeedback').classList.contains('hidden');
+    check('セル選択・選択解除後もpanelが残る', hiddenAfterSelect === false && hiddenAfterDeselect === false);
+
+    const cellA = evalW('({L:REPAIR_CELLS[2].L, r:REPAIR_CELLS[2].r, c:REPAIR_CELLS[2].c})');
+    click(cellA.L, cellA.r, cellA.c);
+    const normalContainerDisplay = doc.getElementById('crossLevelBadges').style.display;
+    const normalBadgeCount = doc.querySelectorAll('#crossLevelBadges .cross-badge').length;
+    check('通常のselectedCell用cross badgeが従来どおり動く', normalContainerDisplay === 'flex' && normalBadgeCount >= 1);
+    click(cellA.L, cellA.r, cellA.c); // 解除
+
+    await evalW('undoSwap()');
+    const hiddenAfterUndo = doc.getElementById('lastSwapFeedback').classList.contains('hidden');
+    check('Undoでpanelが消える', hiddenAfterUndo === true);
+
+    await evalW(`triggerSwap(REPAIR_CELLS[0], REPAIR_CELLS[1])`);
+    evalW('resetPuzzle()');
+    const hiddenAfterReset = doc.getElementById('lastSwapFeedback').classList.contains('hidden');
+    check('Resetでpanelが消える', hiddenAfterReset === true);
+
+    await evalW(`triggerSwap(REPAIR_CELLS[0], REPAIR_CELLS[1])`);
+    await evalW(`triggerSwap(REPAIR_CELLS[2], REPAIR_CELLS[3])`);
+    const replaceCheck = evalW(`
+      (function(){
+        const keys = [...lastSwapFeedback.keys()];
+        const cellsAB = [REPAIR_CELLS[2], REPAIR_CELLS[3]];
+        return keys.every(k=>{
+          const line = ALL_LINES.find(l=>l.key===k);
+          return cellsAB.some(cell=>lineTouchesCell(line, cell.L, cell.r, cell.c));
+        });
+      })()
+    `);
+    check('次交換で内容が置き換わる(新しい交換に無関係な旧結果が残らない)', replaceCheck === true);
+  }
+
+  // ---- 17) 正誤リーク確認 ----
   {
     const { dom } = await loadPage();
     const { doc } = helpers(dom);
