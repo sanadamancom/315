@@ -24,11 +24,14 @@ console.log('== entrypoint (index.html) ==');
   const forbidden = ['ふつう','むずかしい','とても難しい','難易度選択','新しい問題','候補プール','組み合わせ検索','お助け機能','ランダム問題生成','中クリック','Shift＋クリック','測定履歴','測定機','id="boardHud"','id="hudLineList"','id="hudDiagTitle"'];
   check('index.htmlに旧3難易度ボタン等・旧HUDが存在しない', forbidden.every(s => !html.includes(s)));
 
-  const required = ['修復型パズル','未確定12','解読済み15','封印98','リセット','Undo'];
+  const required = ['修復型パズル','未確定12','解読済み57','封印56','リセット','Undo'];
   check('index.htmlに必須表記が揃っている', required.every(s => html.includes(s)));
 
   const staleCounts = ['固定セル117個','未確定セル8個'];
   check('Prototype 01由来の古い件数表記(117/8)が残っていない', staleCounts.every(s => !html.includes(s)));
+
+  const staleP05Counts = ['解読済み15','封印98'];
+  check('Prototype 05初期版(15/98)の古い件数表記が残っていない', staleP05Counts.every(s => !html.includes(s)));
 
   check('近・遠・成立・同の簡潔な説明が存在する', ['近','遠','成立','同'].every(s => html.includes(s)) && /315に近づいた/.test(html) && /315から離れた/.test(html));
 

@@ -767,9 +767,9 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
       })()
     `);
     check('movable 12セル全てで数字が表示される', counts.movable===12 && counts.movableShown===12);
-    check('revealed-fixed 15セル全てで数字が表示される', counts.revealed===15 && counts.revealedShown===15);
-    check('sealed-fixed 98セルは数字が表示されない', counts.sealed===98 && counts.sealedShown===0);
-    check('盤面全体の数字表示が合計27セル', counts.movableShown + counts.revealedShown === 27);
+    check('revealed-fixed 57セル全てで数字が表示される', counts.revealed===57 && counts.revealedShown===57);
+    check('sealed-fixed 56セルは数字が表示されない', counts.sealed===56 && counts.sealedShown===0);
+    check('盤面全体の数字表示が合計69セル', counts.movableShown + counts.revealedShown === 69);
 
     // sealed-fixedの数字がDOM属性(aria-label/title/data-value等)にも露出しないこと。
     // data-l/data-r/data-c/data-key/idなど構造的な座標属性は対象外(数字は座標であり漏洩ではない)。
@@ -854,7 +854,7 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
         return out;
       })()
     `);
-    check('sealed-fixedの鍵穴が98件', keyholeCounts1.sealed === 98);
+    check('sealed-fixedの鍵穴が56件', keyholeCounts1.sealed === 56);
     check('movableの鍵穴が0件', keyholeCounts1.movable === 0);
     check('revealed-fixedの鍵穴が0件', keyholeCounts1.revealed === 0);
 
@@ -881,7 +881,7 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
         return { checked, numericLeak, pointerBad, ariaBad };
       })()
     `);
-    check('鍵穴チェック対象が98件', keyholeSafety.checked === 98);
+    check('鍵穴チェック対象が56件', keyholeSafety.checked === 56);
     check('鍵穴に内部値(数字/title/data値)が含まれない', keyholeSafety.numericLeak === 0);
     check('鍵穴がpointer-events:none', keyholeSafety.pointerBad === 0);
     check('鍵穴がaria-hidden=true', keyholeSafety.ariaBad === 0);
@@ -915,7 +915,7 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
         return { count, dup };
       })()
     `);
-    check('Reset後も鍵穴が98件で重複しない', keyholeAfterReset.count === 98 && keyholeAfterReset.dup === 0);
+    check('Reset後も鍵穴が56件で重複しない', keyholeAfterReset.count === 56 && keyholeAfterReset.dup === 0);
 
     // 交換とUndo後も件数・状態が維持される
     evalW(`
@@ -941,7 +941,7 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
         return { count, dup };
       })()
     `);
-    check('交換・Undo後も鍵穴が98件で重複しない', keyholeAfterSwapUndo.count === 98 && keyholeAfterSwapUndo.dup === 0);
+    check('交換・Undo後も鍵穴が56件で重複しない', keyholeAfterSwapUndo.count === 56 && keyholeAfterSwapUndo.dup === 0);
   }
 
   server.close();

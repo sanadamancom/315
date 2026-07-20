@@ -23,17 +23,30 @@ const REPAIR_CELLS = [
   { L:5, r:4, c:4, correctValue:101, initialValue:25 },
 ];
 
-// Prototype 05: 固定セル(REPAIR_CELLSに含まれない113セル)のうち、数字を表示する15セル。
+// Prototype 05: 固定セル(REPAIR_CELLSに含まれない113セル)のうち、数字を表示する57セル。
 // 選定は tools/repair 側のread-onlyなgeometry probe(座標・109ライン所属のみ使用、
-// 数字・正誤・正解交換・witnessPathは不使用)による決定論的な制約充足解(Variant C)。
-// 各LEVEL 3個、LEVEL内でrow/column非重複、各LEVELで最低1個は未確定セルを含む
-// active lineに所属、各active lineでrevealed-fixedは最大1・sealed-fixedは最低2を維持。
+// 数字・正誤・正解交換・witnessPathは不使用)による決定論的な制約充足解(5:5配置 Variant B)。
+// LEVEL別件数は10/12/13/12/10。各active line(未確定セルを含む109ライン)にrevealed-fixedを
+// 最低1・sealed-fixedを最低1残し、各inactive line(固定セルのみのライン)はsealed-fixedを
+// 0個または2個以上にして単独差分での判明を防ぐ。各LEVELの全row・columnにrevealed-fixedと
+// sealed-fixedの両方が存在する(Variant B)。
 const REVEALED_FIXED_CELLS = [
-  { L:1, r:0, c:1 }, { L:1, r:2, c:3 }, { L:1, r:4, c:2 },
-  { L:2, r:0, c:2 }, { L:2, r:1, c:4 }, { L:2, r:2, c:1 },
-  { L:3, r:0, c:2 }, { L:3, r:1, c:4 }, { L:3, r:2, c:0 },
-  { L:4, r:0, c:2 }, { L:4, r:1, c:1 }, { L:4, r:3, c:3 },
-  { L:5, r:0, c:3 }, { L:5, r:1, c:1 }, { L:5, r:3, c:2 },
+  { L:1, r:0, c:3 }, { L:1, r:1, c:1 }, { L:1, r:1, c:2 }, { L:1, r:1, c:4 },
+  { L:1, r:2, c:2 }, { L:1, r:2, c:3 }, { L:1, r:3, c:0 }, { L:1, r:3, c:2 },
+  { L:1, r:4, c:1 }, { L:1, r:4, c:3 },
+  { L:2, r:0, c:0 }, { L:2, r:0, c:1 }, { L:2, r:0, c:3 }, { L:2, r:1, c:1 },
+  { L:2, r:1, c:2 }, { L:2, r:1, c:4 }, { L:2, r:2, c:1 }, { L:2, r:2, c:4 },
+  { L:2, r:3, c:0 }, { L:2, r:3, c:2 }, { L:2, r:4, c:2 }, { L:2, r:4, c:4 },
+  { L:3, r:0, c:3 }, { L:3, r:0, c:4 }, { L:3, r:1, c:3 }, { L:3, r:1, c:4 },
+  { L:3, r:2, c:0 }, { L:3, r:2, c:1 }, { L:3, r:2, c:2 }, { L:3, r:3, c:0 },
+  { L:3, r:3, c:1 }, { L:3, r:3, c:2 }, { L:3, r:4, c:0 }, { L:3, r:4, c:1 },
+  { L:3, r:4, c:2 },
+  { L:4, r:0, c:4 }, { L:4, r:1, c:3 }, { L:4, r:1, c:4 }, { L:4, r:2, c:0 },
+  { L:4, r:2, c:1 }, { L:4, r:2, c:2 }, { L:4, r:3, c:0 }, { L:4, r:3, c:1 },
+  { L:4, r:3, c:2 }, { L:4, r:4, c:0 }, { L:4, r:4, c:1 }, { L:4, r:4, c:2 },
+  { L:5, r:0, c:1 }, { L:5, r:0, c:2 }, { L:5, r:1, c:1 }, { L:5, r:1, c:2 },
+  { L:5, r:1, c:4 }, { L:5, r:2, c:3 }, { L:5, r:3, c:0 }, { L:5, r:3, c:1 },
+  { L:5, r:3, c:2 }, { L:5, r:4, c:3 },
 ];
 
 function isRevealedFixed(L,r,c){
