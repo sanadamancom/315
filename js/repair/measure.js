@@ -15,6 +15,21 @@ function measureLine(state, line){
   return sum > 315 ? '↑' : '↓';
 }
 
+// Prototype 06: 偏差帯の固定閾値(この1箇所だけで管理する)。
+const DEVIATION_BAND_THRESHOLD = 55;
+
+// 315に対するdirectionと2段階のband(0=equal,1,2)だけを返す純粋関数。
+// 正確な合計・偏差量は戻り値へ含めない。
+// direction: 'equal' | 'over' | 'under'
+// band: 0(=equalのみ) / 1(|sum-315|が1〜threshold) / 2(threshold+1以上)
+function classifyDeviationBand(sum, threshold = DEVIATION_BAND_THRESHOLD){
+  if(sum === 315) return { direction: 'equal', band: 0 };
+  const direction = sum > 315 ? 'over' : 'under';
+  const distance = Math.abs(sum - 315);
+  const band = distance <= threshold ? 1 : 2;
+  return { direction, band };
+}
+
 // 指定セル(L,r,c)が属するラインの一覧を返す。
 function linesThroughCell(allLines, L, r, c){
   const z = L-1, y = r, x = c;

@@ -77,6 +77,15 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
 .cross-badge .cb-result.eq{color:var(--ok);}
 .cross-badge .cb-result.over{color:var(--bad);}
 .cross-badge .cb-result.under{color:var(--under);}
+.cross-badge .cb-result{display:inline-flex;align-items:center;gap:3px;}
+.cross-badge .band-indicator{display:inline-flex;flex-direction:column;gap:1px;width:5px;}
+.cross-badge .band-dot{width:4px;height:4px;border-radius:50%;background:currentColor;opacity:0;}
+.cross-badge .band-indicator.show-1 .band-dot-1{opacity:1;}
+.cross-badge .band-indicator.show-2 .band-dot-1,
+.cross-badge .band-indicator.show-2 .band-dot-2{opacity:1;}
+.cross-badge .band-chevron-html{width:0;height:0;pointer-events:none;}
+.cross-badge .band-chevron-html.up{border-left:2.3px solid transparent;border-right:2.3px solid transparent;border-bottom:2.6px solid currentColor;}
+.cross-badge .band-chevron-html.down{border-left:2.3px solid transparent;border-right:2.3px solid transparent;border-top:2.6px solid currentColor;}
 
 /* ---- 直前交換結果(階層横断ライン)専用panel: board-legend(左下)とは反対の右上へ固定表示する。
    selectedCellには依存せず、通常のcrossLevelBadgesとは別要素・別配置。 ---- */
@@ -168,6 +177,11 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
 .edge-label{font-size:15px;}
 .wall-label.stat-over, .edge-label.stat-over{fill:var(--bad);}
 .wall-label.stat-under, .edge-label.stat-under{fill:var(--under);}
+.band-indicator{pointer-events:none;}
+.band-indicator .band-dot{fill:currentColor;}
+.band-indicator .band-chevron{fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;}
+.band-indicator.stat-over{color:var(--bad);}
+.band-indicator.stat-under{color:var(--under);}
 .row-wall-hit, .col-wall-hit, .diag-hit{cursor:pointer;}
 
 .iso-cell .cube-face{transition:filter .1s ease;}
@@ -285,10 +299,11 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
         金色の数字は交換できる未確定マス(12個)です。淡い数字は解読済みの固定マス(57個)、
         鍵穴は封印された固定マス(56個)で、どちらも交換できません。マスの縁の色(緑/赤)は
         「そのマスを通るラインが全部315かどうか」を示すだけで、マス単体の正誤ではありません。
-        行・列・層内対角線は不成立(↑/↓)のときだけ各盤面の側面・角に記号が出ます。柱や
-        空間対角線などの状態はマスを選ぶと近くにバッジで表示されます。交換直後は影響した
-        ラインへ、近＝315に近づいた／遠＝315から離れた／成立＝315になった／同＝315との差が
-        変化なし、を現在の記号と一緒に一時表示します。まず、複数の↑が重なる大きめの金色の
+        行・列・層内対角線は不成立(↑/↓)のときだけ各盤面の側面・角に記号が出ます。記号の右には
+        315からの距離を示す縦点(1個/2個)が付きます。柱や空間対角線などの状態はマスを選ぶと
+        近くにバッジで表示されます。交換直後は影響したラインへ、点の上下に向き付きの山形を
+        一時表示します。内向き(点へ収束)は315に近づいたことを、外向き(点から拡散)は315から離れたことを示します。
+        まず、複数の↑が重なる大きめの金色の
         数字と、複数の↓が重なる小さめの金色の数字を交換候補にしてみましょう。
       </div>
     </div>

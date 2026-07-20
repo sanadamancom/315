@@ -521,7 +521,7 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
     check('固定セルを選択できる(選択classが付く)', selected.classList.contains('cell-selected'));
   }
 
-  // ---- 14) 直前交換結果のライン別表示(平面60ライン) ----
+  // ---- 14) 直前交換結果のライン別表示(平面60ライン): 可視文字を廃止し、山形で表現する ----
   {
     const { dom } = await loadPage();
     const { doc, evalW } = helpers(dom);
@@ -531,20 +531,46 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
     const mismatch = evalW(`
       (function(){
         function directText(el){ let o=''; el.childNodes.forEach(n=>{ if(n.nodeType===3) o+=n.textContent; }); return o; }
-        const CHANGE_LABEL = { unchanged:'同', solved:'成立', closer:'近', farther:'遠' };
-        let bad = 0, feedbackCount = 0;
+        function indicatorSelector(line){
+          const c0 = line.cells[0], L = c0.z+1;
+          if(line.type==='row') return '.row-wall-band[data-l="'+L+'"][data-r="'+c0.y+'"]';
+          if(line.type==='col') return '.col-wall-band[data-l="'+L+'"][data-c="'+c0.x+'"]';
+          if(line.type==='xy-main') return '.diag-band-main[data-l="'+L+'"]';
+          return '.diag-band-anti[data-l="'+L+'"]';
+        }
+        let bad = 0, feedbackCount = 0, closerFartherChecked = 0;
         function checkLine(el, line){
           const status = measureLine(repairState, line);
           const change = lastSwapFeedback ? lastSwapFeedback.get(line.key) : undefined;
           const text = directText(el);
+          const indicator = document.querySelector(indicatorSelector(line));
           if(change !== undefined){
             feedbackCount++;
-            if(text !== status + ' ' + CHANGE_LABEL[change]) bad++;
+            if(text !== status) bad++; // 可視文字ラベル(近/遠/成立/同)を付けず記号のみ
             if(el.dataset.swapChange !== change) bad++;
             if(status === '='){
               if(el.style.pointerEvents !== 'none' || el.dataset.lineKey) bad++;
+              if(indicator && indicator.style.display !== 'none') bad++;
             } else {
               if(el.style.pointerEvents !== 'auto' || el.dataset.lineKey !== line.key) bad++;
+              const chevronTop = indicator && indicator.querySelector('.band-chevron-top');
+              const chevronBottom = indicator && indicator.querySelector('.band-chevron-bottom');
+              const chevronsVisible = !!chevronTop && chevronTop.style.display !== 'none'
+                && !!chevronBottom && chevronBottom.style.display !== 'none';
+              if(change === 'closer' || change === 'farther'){
+                closerFartherChecked++;
+                if(!chevronsVisible) bad++;
+                const topD = chevronTop.getAttribute('d') || '';
+                const bottomD = chevronBottom.getAttribute('d') || '';
+                // closer: 上山形の頂点は基準線より下(収束/下向き)、farther: 上山形の頂点は基準線より上(拡散/上向き)
+                const topPts = topD.match(/-?\\d+(\\.\\d+)?/g).map(Number);
+                const apexY = topPts[3], baseY = topPts[1];
+                const topPointsDown = apexY > baseY;
+                if(change === 'closer' && !topPointsDown) bad++;
+                if(change === 'farther' && topPointsDown) bad++;
+              } else {
+                if(chevronsVisible) bad++;
+              }
             }
           } else {
             if(status === '=' ? text !== '' : text !== status) bad++;
@@ -567,11 +593,41 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
           const L=Number(el.dataset.l);
           checkLine(el, ALL_LINES.find(l=>l.type==='xy-anti'&&l.cells[0].z===L-1));
         });
-        return { bad, feedbackCount };
+        return { bad, feedbackCount, closerFartherChecked };
       })()
     `);
-    check('交換後に影響した階層内ラインへ、現在の診断記号と結果文字が組み合わせて表示される', mismatch.bad === 0 && mismatch.feedbackCount > 0);
+    check('交換後に影響した階層内ラインへ、現在の診断記号だけ(可視文字なし)が表示される', mismatch.bad === 0 && mismatch.feedbackCount > 0);
+    check('closer/fartherの山形が向き規則どおりに表示される(検証対象を確保)', mismatch.bad === 0 && mismatch.closerFartherChecked > 0);
     check('無関係なラインに結果が付かず、正確な合計・偏差量も表示されない(直前チェックに包含)', mismatch.bad === 0);
+
+    // 再描画で山形が増殖しない(全band-chevron要素は静的生成、可視/非可視のみ切替)
+    const chevronCountBefore = doc.querySelectorAll('.band-chevron').length;
+    evalW('renderAll(); renderAll();');
+    const chevronCountAfter = doc.querySelectorAll('.band-chevron').length;
+    check('再描画で山形(SVG band-chevron)が増殖しない(120件で固定)',
+      chevronCountBefore === 120 && chevronCountAfter === 120);
+
+    // セル選択・選択解除では山形(直前交換feedback)が維持される
+    const visibleChevronsBeforeSelect = evalW(`document.querySelectorAll('.band-chevron').length ? Array.from(document.querySelectorAll('.band-chevron')).filter(e=>e.style.display!=='none').length : 0`);
+    const someLockedCoord = evalW(`
+      (function(){
+        for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+          if(!isRepairUnlocked(L,r,c)) return {L,r,c};
+        }
+        return null;
+      })()
+    `);
+    doc.querySelector(`.iso-cell[data-l="${someLockedCoord.L}"][data-r="${someLockedCoord.r}"][data-c="${someLockedCoord.c}"]`)
+      .dispatchEvent(new dom.window.MouseEvent('click', {bubbles:true, button:0}));
+    doc.querySelector(`.iso-cell[data-l="${someLockedCoord.L}"][data-r="${someLockedCoord.r}"][data-c="${someLockedCoord.c}"]`)
+      .dispatchEvent(new dom.window.MouseEvent('click', {bubbles:true, button:0}));
+    const visibleChevronsAfterSelectCycle = evalW(`Array.from(document.querySelectorAll('.band-chevron')).filter(e=>e.style.display!=='none').length`);
+    check('セル選択・選択解除では山形が維持される', visibleChevronsBeforeSelect > 0 && visibleChevronsBeforeSelect === visibleChevronsAfterSelectCycle);
+
+    // Undoで山形が消える(直前結果自体が消えるため)
+    await evalW('undoSwap()');
+    const visibleChevronsAfterUndo = evalW(`Array.from(document.querySelectorAll('.band-chevron')).filter(e=>e.style.display!=='none').length`);
+    check('Undoで山形が消える', visibleChevronsAfterUndo === 0);
 
     // 成立(＝)ラインは通常非表示だが、直前結果がある間だけ一時的に表示されることを、
     // 状態を直接操作してcandidateに依存せず確認する(初期状態には成立中の行ラインが多数存在する)。
@@ -583,10 +639,31 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
         lastSwapFeedback = new Map([[eqLine.key, 'solved']]);
         renderAll();
         const el = document.querySelector('.row-wall-label[data-l="'+(eqLine.cells[0].z+1)+'"][data-r="'+eqLine.cells[0].y+'"]');
-        return { found:true, text: directText(el), pointerEvents: el.style.pointerEvents, hasLineKey: !!el.dataset.lineKey };
+        const indicator = document.querySelector('.row-wall-band[data-l="'+(eqLine.cells[0].z+1)+'"][data-r="'+eqLine.cells[0].y+'"]');
+        return {
+          found:true, text: directText(el), pointerEvents: el.style.pointerEvents, hasLineKey: !!el.dataset.lineKey,
+          indicatorHidden: !indicator || indicator.style.display === 'none',
+        };
       })()
     `);
-    check('成立した影響ラインが一時的に表示される', solvedDisplay.found && solvedDisplay.text === '= 成立' && solvedDisplay.pointerEvents === 'none' && !solvedDisplay.hasLineKey);
+    check('成立した影響ラインは＝のみ表示され、山形・成立文字・band点が出ない',
+      solvedDisplay.found && solvedDisplay.text === '=' && solvedDisplay.pointerEvents === 'none'
+      && !solvedDisplay.hasLineKey && solvedDisplay.indicatorHidden === true);
+
+    // 対象feedback DOM(平面ラベル・階層横断badge・panel)に旧可視文字が一切残っていない
+    const oldTextLeak = evalW(`
+      (function(){
+        const forbidden = ['近','遠','成立','同'];
+        let leak = 0;
+        const selectors = ['.row-wall-label','.col-wall-label','.diag-sum-main','.diag-sum-anti','#crossLevelBadges .cross-badge','#lastSwapFeedbackItems .cross-badge'];
+        document.querySelectorAll(selectors.join(',')).forEach(el=>{
+          const t = el.textContent;
+          if(forbidden.some(w=>t.includes(w))) leak++;
+        });
+        return leak;
+      })()
+    `);
+    check('feedback関連DOMに近・遠・成立・同の可視文字が残らない', oldTextLeak === 0);
 
     const lockedStillEmpty = evalW(`
       (function(){
@@ -671,21 +748,31 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
 
     const badgeCheck = evalW(`
       (function(){
-        const CHANGE_LABEL = { unchanged:'同', solved:'成立', closer:'近', farther:'遠' };
         let bad = 0;
         document.querySelectorAll('#lastSwapFeedbackItems .cross-badge').forEach(el=>{
           const key = el.dataset.lineKey;
           const change = el.dataset.swapChange;
           const line = ALL_LINES.find(l=>l.key===key);
           const status = measureLine(repairState, line);
-          const resultText = el.querySelector('.cb-result').textContent;
-          if(resultText !== status + ' ' + CHANGE_LABEL[change]) bad++;
-          if(/[0-9]/.test(resultText)) bad++; // 結果表示に合計・偏差量らしき数字が出ていないか
+          const result = el.querySelector('.cb-result');
+          const arrow = result.querySelector('.cb-arrow');
+          if(!arrow || arrow.textContent !== status) bad++;
+          if(/近|遠|成立|同/.test(result.textContent)) bad++;
+          if(/[0-9]/.test(result.textContent)) bad++; // 結果表示に合計・偏差量らしき数字が出ていないか
+          const indicator = result.querySelector('.band-indicator');
+          if(status === '='){
+            if(indicator) bad++;
+          } else if(change === 'closer' || change === 'farther'){
+            const chevrons = indicator ? indicator.querySelectorAll('.band-chevron-html') : [];
+            if(chevrons.length !== 2) bad++;
+          } else {
+            if(indicator && indicator.querySelectorAll('.band-chevron-html').length !== 0) bad++;
+          }
         });
         return bad;
       })()
     `);
-    check('現在診断と質的変化が同時表示され、正確な合計や偏差量が表示されない', badgeCheck === 0);
+    check('現在診断は記号のみ(可視文字なし)で表示され、正確な合計や偏差量が表示されない', badgeCheck === 0);
 
     const firstBadgeKey = evalW(`document.querySelector('#lastSwapFeedbackItems .cross-badge').dataset.lineKey`);
     doc.querySelector('#lastSwapFeedbackItems .cross-badge').dispatchEvent(new dom.window.MouseEvent('click', {bubbles:true}));
@@ -942,6 +1029,195 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
       })()
     `);
     check('交換・Undo後も鍵穴が56件で重複しない', keyholeAfterSwapUndo.count === 56 && keyholeAfterSwapUndo.dup === 0);
+  }
+
+  // ---- 19) Prototype 06: 縦型偏差インジケーター(↑・↓＋band点) ----
+  {
+    const { dom } = await loadPage();
+    const { doc, evalW, click } = helpers(dom);
+
+    evalW(`
+      function findFlatLineSelectors(line){
+        const c0 = line.cells[0];
+        const L = c0.z+1;
+        if(line.type==='row') return { label: '.row-wall-label[data-l="'+L+'"][data-r="'+c0.y+'"]', indicator: '.row-wall-band[data-l="'+L+'"][data-r="'+c0.y+'"]' };
+        if(line.type==='col') return { label: '.col-wall-label[data-l="'+L+'"][data-c="'+c0.x+'"]', indicator: '.col-wall-band[data-l="'+L+'"][data-c="'+c0.x+'"]' };
+        if(line.type==='xy-main') return { label: '.diag-sum-main[data-l="'+L+'"]', indicator: '.diag-band-main[data-l="'+L+'"]' };
+        return { label: '.diag-sum-anti[data-l="'+L+'"]', indicator: '.diag-band-anti[data-l="'+L+'"]' };
+      }
+      function findFlatLineByBand(direction, band){
+        const flatTypes = new Set(['row','col','xy-main','xy-anti']);
+        for(const line of ALL_LINES){
+          if(!flatTypes.has(line.type)) continue;
+          const cls = classifyDeviationBand(lineSum(repairState, line));
+          if(cls.direction===direction && cls.band===band) return line.key;
+        }
+        return null;
+      }
+      function flatIndicatorsConsistency(){
+        const flatTypes = new Set(['row','col','xy-main','xy-anti']);
+        let checked=0, mismatched=0;
+        for(const line of ALL_LINES){
+          if(!flatTypes.has(line.type)) continue;
+          const sel = findFlatLineSelectors(line);
+          const indicator = document.querySelector(sel.indicator);
+          if(!indicator){ mismatched++; continue; }
+          const cls = classifyDeviationBand(lineSum(repairState, line));
+          checked++;
+          const dot1 = indicator.querySelector('.band-dot-1');
+          const dot2 = indicator.querySelector('.band-dot-2');
+          const dot1Visible = !!dot1 && dot1.style.display !== 'none';
+          const dot2Visible = !!dot2 && dot2.style.display !== 'none';
+          const shown = indicator.style.display !== 'none';
+          if(cls.band === 0){ if(shown) mismatched++; }
+          else if(cls.band === 1){ if(!shown || !dot1Visible || dot2Visible) mismatched++; }
+          else { if(!shown || !dot1Visible || !dot2Visible) mismatched++; }
+        }
+        return { checked, mismatched };
+      }
+    `);
+
+    // 初期描画時から、各band/directionパターンが正しく描画されている
+    const overBand1 = evalW(`findFlatLineByBand('over',1)`);
+    const overBand2 = evalW(`findFlatLineByBand('over',2)`);
+    const underBand1 = evalW(`findFlatLineByBand('under',1)`);
+    const underBand2 = evalW(`findFlatLineByBand('under',2)`);
+    check('初期盤面にover/under × band1/band2の検証対象が確保できる', overBand1 && overBand2 && underBand1 && underBand2);
+
+    function indicatorState(lineKey){
+      return evalW(`
+        (function(){
+          const line = ALL_LINES.find(l=>l.key===${JSON.stringify(lineKey)});
+          const sel = findFlatLineSelectors(line);
+          const label = document.querySelector(sel.label);
+          const indicator = document.querySelector(sel.indicator);
+          if(!label || !indicator) return null;
+          const dot1 = indicator.querySelector('.band-dot-1');
+          const dot2 = indicator.querySelector('.band-dot-2');
+          return {
+            arrowChar: label.textContent.charAt(0),
+            dot1Visible: !!dot1 && dot1.style.display !== 'none',
+            dot2Visible: !!dot2 && dot2.style.display !== 'none',
+            sameParent: !!dot1 && !!dot2 && dot1.parentNode === dot2.parentNode,
+            parentTag: indicator.tagName.toLowerCase(),
+            sameCx: !!dot1 && !!dot2 && dot1.getAttribute('cx') === dot2.getAttribute('cx'),
+            diffCy: !!dot1 && !!dot2 && dot1.getAttribute('cy') !== dot2.getAttribute('cy'),
+          };
+        })()
+      `);
+    }
+
+    if(overBand1){
+      const s = indicatorState(overBand1);
+      check('over/band1は↑と点1個で描画される', s && s.arrowChar === '↑' && s.dot1Visible === true && s.dot2Visible === false);
+    }
+    if(underBand1){
+      const s = indicatorState(underBand1);
+      check('under/band1は↓と点1個で描画される', s && s.arrowChar === '↓' && s.dot1Visible === true && s.dot2Visible === false);
+    }
+    if(overBand2){
+      const s = indicatorState(overBand2);
+      check('over/band2は↑と縦点2個で描画される', s && s.arrowChar === '↑' && s.dot1Visible === true && s.dot2Visible === true);
+      check('band2の2点は同一indicator(<g>)内の兄弟で、横位置(cx)が同じ・縦位置(cy)が異なる(縦型構造)',
+        s && s.parentTag === 'g' && s.sameParent === true && s.sameCx === true && s.diffCy === true);
+    }
+    if(underBand2){
+      const s = indicatorState(underBand2);
+      check('under/band2は↓と縦点2個で描画される', s && s.arrowChar === '↓' && s.dot1Visible === true && s.dot2Visible === true);
+    }
+
+    // 全flatラインでindicator状態がclassifyDeviationBandの結果と矛盾しない(初期描画)
+    const consistencyInitial = evalW('flatIndicatorsConsistency()');
+    check('初期描画: 全flatラインでindicatorが現在のdirection/bandと一致(不一致0件)',
+      consistencyInitial.checked > 0 && consistencyInitial.mismatched === 0);
+
+    // 階層横断badge側にも同じ構造が描画される
+    const crossCell = evalW('({L:REPAIR_CELLS[3].L, r:REPAIR_CELLS[3].r, c:REPAIR_CELLS[3].c})');
+    click(crossCell.L, crossCell.r, crossCell.c);
+    evalW(`
+      function crossBadgeConsistency(L,r,c){
+        const lines = linesThroughCell(ALL_LINES, L, r, c).filter(line=>CROSS_LEVEL_TYPES.has(line.type));
+        const badges = Array.from(document.querySelectorAll('#crossLevelBadges .cross-badge'));
+        if(badges.length !== lines.length) return { checked:0, mismatched:1 };
+        let checked=0, mismatched=0;
+        for(let i=0;i<lines.length;i++){
+          const line = lines[i], badge = badges[i];
+          const cls = classifyDeviationBand(lineSum(repairState, line));
+          checked++;
+          const arrow = badge.querySelector('.cb-arrow');
+          const wantArrow = cls.direction==='equal' ? '=' : (cls.direction==='over' ? '↑' : '↓');
+          if(!arrow || arrow.textContent !== wantArrow) mismatched++;
+          const indicator = badge.querySelector('.band-indicator');
+          if(cls.band === 0){
+            if(indicator) mismatched++;
+          } else {
+            if(!indicator){ mismatched++; continue; }
+            const wantClass = cls.band===2 ? 'show-2' : 'show-1';
+            if(!indicator.classList.contains(wantClass)) mismatched++;
+            if(!indicator.querySelector('.band-dot-1') || !indicator.querySelector('.band-dot-2')) mismatched++;
+          }
+        }
+        return { checked, mismatched };
+      }
+    `);
+    const crossConsistency = evalW(`crossBadgeConsistency(${crossCell.L}, ${crossCell.r}, ${crossCell.c})`);
+    check('階層横断badgeでも同じband-indicator構造が描画され、現在状態と一致する',
+      crossConsistency.checked > 0 && crossConsistency.mismatched === 0);
+    click(crossCell.L, crossCell.r, crossCell.c); // 選択解除
+
+    // 交換後・Undo後・Reset後もindicatorが現在状態から再計算される(不一致0件を都度確認)
+    await evalW(`triggerSwap(REPAIR_CELLS[0], REPAIR_CELLS[1])`);
+    const consistencyAfterSwap = evalW('flatIndicatorsConsistency()');
+    check('交換後: 全flatラインでindicatorが現在のdirection/bandと一致', consistencyAfterSwap.mismatched === 0);
+
+    await evalW('undoSwap()');
+    const consistencyAfterUndo = evalW('flatIndicatorsConsistency()');
+    check('Undo後: indicatorが交換前のdirection/bandへ戻る(不一致0件)', consistencyAfterUndo.mismatched === 0);
+
+    await evalW(`triggerSwap(REPAIR_CELLS[2], REPAIR_CELLS[3])`);
+    evalW('resetPuzzle()');
+    const consistencyAfterReset = evalW('flatIndicatorsConsistency()');
+    check('Reset後: indicatorが初期direction/bandへ戻る(不一致0件)', consistencyAfterReset.mismatched === 0);
+
+    // 再描画で増殖しない(band-indicator総数が固定件数のまま)
+    const countBefore = doc.querySelectorAll('.band-indicator').length;
+    evalW('renderAll(); renderAll();');
+    const countAfter = doc.querySelectorAll('.band-indicator').length;
+    check('renderAllを複数回実行してもband-indicatorが増殖しない(60件のまま)',
+      countBefore === 60 && countAfter === 60);
+
+    // indicator部分木に正確な合計・偏差量が露出しない(text/title/aria-label/data属性)
+    const leak = evalW(`
+      (function(){
+        let leak = 0;
+        document.querySelectorAll('.band-indicator').forEach(ind=>{
+          if(/[1-9][0-9]{0,2}/.test(ind.textContent)) leak++;
+          ind.querySelectorAll('*').forEach(child=>{
+            if(/[1-9][0-9]{0,2}/.test(child.textContent||'')) leak++;
+            for(const attr of Array.from(child.attributes)){
+              if(attr.name==='title' || attr.name==='aria-label' || attr.name.startsWith('data-')){
+                if(/[1-9][0-9]{0,2}/.test(attr.value)) leak++;
+              }
+            }
+          });
+        });
+        return leak;
+      })()
+    `);
+    check('band-indicator部分木に正確な合計・偏差量が露出しない', leak === 0);
+
+    // 既存のラインクリック・フォーカスが維持される(band点追加後も同じ挙動)
+    if(overBand1){
+      const sel = evalW(`JSON.stringify(findFlatLineSelectors(ALL_LINES.find(l=>l.key===${JSON.stringify(overBand1)})))`);
+      const parsedSel = JSON.parse(sel);
+      const labelEl = doc.querySelector(parsedSel.label);
+      labelEl.dispatchEvent(new dom.window.MouseEvent('click', {bubbles:true}));
+      const highlightedAfterClick = evalW('highlightedLineKey');
+      labelEl.dispatchEvent(new dom.window.MouseEvent('click', {bubbles:true}));
+      const highlightedAfterSecondClick = evalW('highlightedLineKey');
+      check('既存のラインクリックでフォーカスがトグルされる(band点追加後も維持)',
+        highlightedAfterClick === overBand1 && highlightedAfterSecondClick === null);
+    }
   }
 
   server.close();

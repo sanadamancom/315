@@ -40,6 +40,8 @@ vm.runInContext(`
   globalThis.swapRepairCells = swapRepairCells;
   globalThis.isRepairSolved = isRepairSolved;
   globalThis.measureLine = measureLine;
+  globalThis.classifyDeviationBand = classifyDeviationBand;
+  globalThis.DEVIATION_BAND_THRESHOLD = DEVIATION_BAND_THRESHOLD;
   globalThis.linesThroughCell = linesThroughCell;
   globalThis.classifyLineChange = classifyLineChange;
   globalThis.analyzeAffectedLineChanges = analyzeAffectedLineChanges;
@@ -268,6 +270,22 @@ console.log('== measure ==');
   check('交換の影響ラインを正しく特定できる', touching.length > 0 && touching.every(l =>
     l.cells.some(c => c.z===affectedCell.L-1 && c.y===affectedCell.r && c.x===affectedCell.c)
   ));
+}
+
+console.log('== classifyDeviationBand ==');
+{
+  const f = ctx.classifyDeviationBand;
+
+  check('315 → equal/band0', JSON.stringify(f(315)) === JSON.stringify({direction:'equal', band:0}));
+  check('316 → over/band1', JSON.stringify(f(316)) === JSON.stringify({direction:'over', band:1}));
+  check('370 → over/band1(境界55)', JSON.stringify(f(370)) === JSON.stringify({direction:'over', band:1}));
+  check('371 → over/band2(境界56)', JSON.stringify(f(371)) === JSON.stringify({direction:'over', band:2}));
+  check('314 → under/band1', JSON.stringify(f(314)) === JSON.stringify({direction:'under', band:1}));
+  check('260 → under/band1(境界55)', JSON.stringify(f(260)) === JSON.stringify({direction:'under', band:1}));
+  check('259 → under/band2(境界56)', JSON.stringify(f(259)) === JSON.stringify({direction:'under', band:2}));
+  check('315から同距離のover/underで同じband(370/260)', f(370).band === f(260).band);
+  check('315から同距離のover/underで同じband(371/259)', f(371).band === f(259).band);
+  check('既定閾値はDEVIATION_BAND_THRESHOLDと一致', ctx.DEVIATION_BAND_THRESHOLD === 55);
 }
 
 console.log('== classifyLineChange ==');

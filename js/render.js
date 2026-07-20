@@ -15,6 +15,32 @@ function pointsAttr(pts){
   return pts.map(p => `${p.x},${p.y}`).join(' ');
 }
 
+// Prototype 06: 現在偏差の2段階bandを表す縦積みの点(SVG円)を1組作る共通helper。
+// テキストラベルの直後へ挿入する想定。初期状態は非表示(display:none)。
+// 位置(x,y)は呼び出し側(repair-main.js)が対応テキストの実測bboxから設定し直す。
+function createBandIndicator(className){
+  const g = document.createElementNS(SVG_NS,'g');
+  g.setAttribute('class', `band-indicator ${className}`);
+  g.style.display = 'none';
+  const chevronTop = document.createElementNS(SVG_NS,'path');
+  chevronTop.setAttribute('class','band-chevron band-chevron-top');
+  chevronTop.style.display = 'none';
+  const dot1 = document.createElementNS(SVG_NS,'circle');
+  dot1.setAttribute('class','band-dot band-dot-1');
+  dot1.setAttribute('r','1.7');
+  const dot2 = document.createElementNS(SVG_NS,'circle');
+  dot2.setAttribute('class','band-dot band-dot-2');
+  dot2.setAttribute('r','1.7');
+  const chevronBottom = document.createElementNS(SVG_NS,'path');
+  chevronBottom.setAttribute('class','band-chevron band-chevron-bottom');
+  chevronBottom.style.display = 'none';
+  g.appendChild(chevronTop);
+  g.appendChild(dot1);
+  g.appendChild(dot2);
+  g.appendChild(chevronBottom);
+  return g;
+}
+
 function addGridLines(svg, nCells, tileW, tileH, originX, stroke){
   const path = document.createElementNS(SVG_NS,'path');
   let d = '';
@@ -328,6 +354,11 @@ function buildLevelCard(L){
         label.setAttribute('text-anchor','middle');
         label.setAttribute('dominant-baseline','central');
         board.appendChild(label);
+        board.appendChild(createBandIndicator('col-wall-band'));
+        {
+          const bi = board.lastChild;
+          bi.dataset.l = L; bi.dataset.c = c;
+        }
       }
       if(c === N-1){
         const right = vertexPoint(r,c+1,TILE_W,TILE_H,originX);
@@ -355,6 +386,11 @@ function buildLevelCard(L){
         label.setAttribute('text-anchor','middle');
         label.setAttribute('dominant-baseline','central');
         board.appendChild(label);
+        board.appendChild(createBandIndicator('row-wall-band'));
+        {
+          const bi = board.lastChild;
+          bi.dataset.l = L; bi.dataset.r = r;
+        }
       }
     }
   }
@@ -419,6 +455,8 @@ function buildLevelCard(L){
     text.setAttribute('text-anchor','middle');
     text.setAttribute('dominant-baseline','central');
     board.appendChild(text);
+    board.appendChild(createBandIndicator('diag-band-main'));
+    { const bi = board.lastChild; bi.dataset.l = L; }
 
     const hit = document.createElementNS(SVG_NS,'circle');
     hit.setAttribute('class','diag-hit diag-hit-main');
@@ -439,6 +477,8 @@ function buildLevelCard(L){
     text.setAttribute('text-anchor','start');
     text.setAttribute('dominant-baseline','central');
     board.appendChild(text);
+    board.appendChild(createBandIndicator('diag-band-anti'));
+    { const bi = board.lastChild; bi.dataset.l = L; }
 
     const hit = document.createElementNS(SVG_NS,'circle');
     hit.setAttribute('class','diag-hit diag-hit-anti');

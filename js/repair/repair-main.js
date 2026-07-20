@@ -35,7 +35,6 @@ let opGeneration = 0;        // Reset等で進行中の交換/Undo/演出を無�
 // analyzeAffectedLineChangesの戻り値だけを保持し、正確な合計値・偏差量は持たない。
 // セル選択・選択解除・Escapeでは消さない。Undo完了・Reset・次の成功交換の完了時にだけ更新/消去する。
 let lastSwapFeedback = null;
-const SWAP_CHANGE_LABEL = { unchanged:'同', solved:'成立', closer:'近', farther:'遠' };
 
 function cellKeyEq(a,b){ return !!a && !!b && a.L===b.L && a.r===b.r && a.c===b.c; }
 function cellDomKey(L,r,c){ return `${L}-${r}-${c}`; }
@@ -464,9 +463,72 @@ function setDirectText(el, text){
   else el.insertBefore(document.createTextNode(text), el.firstChild);
 }
 
+// Prototype 06: 現在偏差の2段階bandを、テキストラベル脇の縦積み点(SVG円)で表示する。
+// 位置はテキストの実測bbox(getBBox)から算出する(推定幅には依存しない)。
+// jsdom等getBBox非対応環境ではtry/catchでフォールバックし、例外を投げない。
+// 直前交換のcloser/fartherは、点列の外側(上下)へ向き付きの山形(SVG path)で示す。
+// closer: 上山形は下向き、下山形は上向き(点列へ収束)。farther: 逆向き(点列から拡散)。
+// 山形はband(点の縦配置)の外側位置に置くだけで、横位置(x)・インジケーター幅は変えない。
+const BAND_DOT_GAP = 4;
+const CHEVRON_HALF_W = 2.3, CHEVRON_H = 1.6, CHEVRON_GAP = 2.6;
+function chevronPath(cx, cy, pointing){
+  // pointing:'up' => ^ 形状(頂点が上), 'down' => v 形状(頂点が下)
+  const apexY = pointing === 'up' ? cy - CHEVRON_H : cy + CHEVRON_H;
+  const baseY = pointing === 'up' ? cy + CHEVRON_H : cy - CHEVRON_H;
+  return `M ${cx - CHEVRON_HALF_W} ${baseY} L ${cx} ${apexY} L ${cx + CHEVRON_HALF_W} ${baseY}`;
+}
+function updateBandIndicator(indicatorEl, textEl, band, statClass, change){
+  if(!indicatorEl) return;
+  const chevronTop = indicatorEl.querySelector('.band-chevron-top');
+  const chevronBottom = indicatorEl.querySelector('.band-chevron-bottom');
+  if(!band){
+    indicatorEl.style.display = 'none';
+    if(chevronTop) chevronTop.style.display = 'none';
+    if(chevronBottom) chevronBottom.style.display = 'none';
+    return;
+  }
+  indicatorEl.style.display = '';
+  indicatorEl.classList.remove('stat-over','stat-under');
+  if(statClass) indicatorEl.classList.add(`stat-${statClass}`);
+
+  let bbox;
+  try{ bbox = textEl.getBBox(); }catch(e){ bbox = { x:0, y:0, width:0, height:0 }; }
+  const dotX = bbox.x + bbox.width + BAND_DOT_GAP;
+  const centerY = bbox.y + bbox.height/2;
+  const dot1 = indicatorEl.querySelector('.band-dot-1');
+  const dot2 = indicatorEl.querySelector('.band-dot-2');
+  let topY, bottomY;
+  if(band === 1){
+    if(dot1){ dot1.setAttribute('cx', dotX); dot1.setAttribute('cy', centerY); dot1.style.display = ''; }
+    if(dot2) dot2.style.display = 'none';
+    topY = centerY; bottomY = centerY;
+  } else {
+    if(dot1){ dot1.setAttribute('cx', dotX); dot1.setAttribute('cy', centerY - 3); dot1.style.display = ''; }
+    if(dot2){ dot2.setAttribute('cx', dotX); dot2.setAttribute('cy', centerY + 3); dot2.style.display = ''; }
+    topY = centerY - 3; bottomY = centerY + 3;
+  }
+
+  const showChevrons = change === 'closer' || change === 'farther';
+  if(!showChevrons){
+    if(chevronTop) chevronTop.style.display = 'none';
+    if(chevronBottom) chevronBottom.style.display = 'none';
+    return;
+  }
+  const topPointing = change === 'closer' ? 'down' : 'up';
+  const bottomPointing = change === 'closer' ? 'up' : 'down';
+  if(chevronTop){
+    chevronTop.setAttribute('d', chevronPath(dotX, topY - CHEVRON_GAP, topPointing));
+    chevronTop.style.display = '';
+  }
+  if(chevronBottom){
+    chevronBottom.setAttribute('d', chevronPath(dotX, bottomY + CHEVRON_GAP, bottomPointing));
+    chevronBottom.style.display = '';
+  }
+}
+
 // 行・列・層内対角線(60本): 315のラインは記号非表示・操作不能にし、不成立(↑/↓)だけ
 // 記号とヒットボックス(側面区画/対角線ハンドル)をクリック可能にする。
-function applyFlatLabel(el, hit, line, lineStatuses){
+function applyFlatLabel(el, hit, line, lineStatuses, indicator){
   if(!line) return;
   const status = lineStatuses.get(line.key);
   const change = lastSwapFeedback ? lastSwapFeedback.get(line.key) : undefined;
@@ -480,6 +542,7 @@ function applyFlatLabel(el, hit, line, lineStatuses){
     if(hit){ hit.style.pointerEvents = 'none'; delete hit.dataset.lineKey; }
     const title = el.querySelector('title');
     if(title) title.remove();
+    updateBandIndicator(indicator, el, 0, null, undefined);
     return;
   }
 
@@ -487,7 +550,7 @@ function applyFlatLabel(el, hit, line, lineStatuses){
     el.classList.add(`stat-${diagStatusClass(status)}`);
   }
 
-  setDirectText(el, change !== undefined ? `${status} ${SWAP_CHANGE_LABEL[change]}` : status);
+  setDirectText(el, status);
   if(change !== undefined) el.dataset.swapChange = change;
   else delete el.dataset.swapChange;
 
@@ -498,6 +561,7 @@ function applyFlatLabel(el, hit, line, lineStatuses){
     if(hit){ hit.style.pointerEvents = 'none'; delete hit.dataset.lineKey; }
     const title = el.querySelector('title');
     if(title) title.remove();
+    updateBandIndicator(indicator, el, 0, null, undefined);
     return;
   }
 
@@ -512,28 +576,35 @@ function applyFlatLabel(el, hit, line, lineStatuses){
   }
   const meaning = status === '↑' ? '315超過' : '315未満';
   title.textContent = `${lineLabel(line)}: ${meaning} — クリックで対象5マスを強調`;
+
+  const band = classifyDeviationBand(lineSum(repairState, line)).band;
+  updateBandIndicator(indicator, el, band, diagStatusClass(status), change);
 }
 
 function renderFlatLineLabels(lineStatuses){
   document.querySelectorAll('.row-wall-label').forEach(el=>{
     const L = Number(el.dataset.l), r = Number(el.dataset.r);
     const hit = document.querySelector(`.row-wall-hit[data-l="${L}"][data-r="${r}"]`);
-    applyFlatLabel(el, hit, findRowLine(L, r), lineStatuses);
+    const indicator = document.querySelector(`.row-wall-band[data-l="${L}"][data-r="${r}"]`);
+    applyFlatLabel(el, hit, findRowLine(L, r), lineStatuses, indicator);
   });
   document.querySelectorAll('.col-wall-label').forEach(el=>{
     const L = Number(el.dataset.l), c = Number(el.dataset.c);
     const hit = document.querySelector(`.col-wall-hit[data-l="${L}"][data-c="${c}"]`);
-    applyFlatLabel(el, hit, findColLine(L, c), lineStatuses);
+    const indicator = document.querySelector(`.col-wall-band[data-l="${L}"][data-c="${c}"]`);
+    applyFlatLabel(el, hit, findColLine(L, c), lineStatuses, indicator);
   });
   document.querySelectorAll('.diag-sum-main').forEach(el=>{
     const L = Number(el.dataset.l);
     const hit = document.querySelector(`.diag-hit-main[data-l="${L}"]`);
-    applyFlatLabel(el, hit, findLayerDiagMain(L), lineStatuses);
+    const indicator = document.querySelector(`.diag-band-main[data-l="${L}"]`);
+    applyFlatLabel(el, hit, findLayerDiagMain(L), lineStatuses, indicator);
   });
   document.querySelectorAll('.diag-sum-anti').forEach(el=>{
     const L = Number(el.dataset.l);
     const hit = document.querySelector(`.diag-hit-anti[data-l="${L}"]`);
-    applyFlatLabel(el, hit, findLayerDiagAnti(L), lineStatuses);
+    const indicator = document.querySelector(`.diag-band-anti[data-l="${L}"]`);
+    applyFlatLabel(el, hit, findLayerDiagAnti(L), lineStatuses, indicator);
   });
 }
 
@@ -548,6 +619,21 @@ function wireFlatLineLabels(){
       if(key) toggleLineHighlight(key);
     });
   });
+}
+
+// 階層横断badge(HTML)向け: 矢印・band点・(必要なら)closer/farther山形をまとめて組み立てる共通helper。
+// SVG側(updateBandIndicator)と同じ規則: closerは上=下向き/下=上向き(収束)、fartherは逆(拡散)。
+// changeがcloser/fartherでない場合は山形を出さない。正確な合計・偏差量は一切含めない。
+function buildCbResultHtml(status, band, change){
+  const arrowHtml = `<span class="cb-arrow">${status}</span>`;
+  if(!band) return arrowHtml;
+  const dotsClass = band === 2 ? 'show-2' : 'show-1';
+  const showChevrons = change === 'closer' || change === 'farther';
+  const topDir = change === 'closer' ? 'down' : 'up';
+  const bottomDir = change === 'closer' ? 'up' : 'down';
+  const chevronTopHtml = showChevrons ? `<span class="band-chevron-html ${topDir}"></span>` : '';
+  const chevronBottomHtml = showChevrons ? `<span class="band-chevron-html ${bottomDir}"></span>` : '';
+  return `${arrowHtml}<span class="band-indicator ${dotsClass}">${chevronTopHtml}<span class="band-dot band-dot-1"></span><span class="band-dot band-dot-2"></span>${chevronBottomHtml}</span>`;
 }
 
 // 柱・縦断面対角線・空間対角線(49本): 選択セルを通るものだけを、セル付近のバッジで表示する。
@@ -582,7 +668,8 @@ function renderCrossLevelBadges(lineStatuses){
     const badge = document.createElement('div');
     badge.className = 'cross-badge';
     if(highlightedLineKey === line.key) badge.classList.add('active');
-    badge.innerHTML = `<span class="cb-label">${lineLabel(line)}</span><span class="cb-result ${diagStatusClass(status)}">${status}</span>`;
+    const band = status === '=' ? 0 : classifyDeviationBand(lineSum(repairState, line)).band;
+    badge.innerHTML = `<span class="cb-label">${lineLabel(line)}</span><span class="cb-result ${diagStatusClass(status)}">${buildCbResultHtml(status, band, undefined)}</span>`;
     const meaning = status === '=' ? '315(整合)' : status === '↑' ? '315超過' : '315未満';
     badge.title = `${lineLabel(line)}: ${meaning}`;
     badge.addEventListener('click', ()=> toggleLineHighlight(line.key));
@@ -642,8 +729,9 @@ function renderLastSwapFeedback(){
     label.className = 'cb-label';
     label.textContent = lineLabel(line);
     const result = document.createElement('span');
-    result.className = 'cb-result';
-    result.textContent = `${status} ${SWAP_CHANGE_LABEL[change]}`;
+    result.className = `cb-result ${diagStatusClass(status)}`;
+    const band = status === '=' ? 0 : classifyDeviationBand(lineSum(repairState, line)).band;
+    result.innerHTML = buildCbResultHtml(status, band, change);
     badge.appendChild(label);
     badge.appendChild(result);
     badge.addEventListener('click', ()=> toggleLineHighlight(line.key));

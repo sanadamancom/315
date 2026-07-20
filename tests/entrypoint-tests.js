@@ -33,7 +33,8 @@ console.log('== entrypoint (index.html) ==');
   const staleP05Counts = ['解読済み15','封印98'];
   check('Prototype 05初期版(15/98)の古い件数表記が残っていない', staleP05Counts.every(s => !html.includes(s)));
 
-  check('近・遠・成立・同の簡潔な説明が存在する', ['近','遠','成立','同'].every(s => html.includes(s)) && /315に近づいた/.test(html) && /315から離れた/.test(html));
+  check('旧来の近・遠・成立・同という4語の可視説明が存在しない', !['近＝315','遠＝315','成立＝315','同＝315'].some(s => html.includes(s)));
+  check('内向き・外向き山形による交換結果の説明が存在する', /内向き/.test(html) && /外向き/.test(html) && /315に近づいた/.test(html) && /315から離れた/.test(html));
 
   // Prototype 05: 3状態(未確定/解読済み固定/封印固定)の凡例・交換可否・開始指針。
   check('未確定マス(金色)の交換可否が説明されている', /金色の数字は交換できる未確定マス/.test(html));
