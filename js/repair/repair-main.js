@@ -470,7 +470,8 @@ function setDirectText(el, text){
 // closer: 上山形は下向き、下山形は上向き(点列へ収束)。farther: 逆向き(点列から拡散)。
 // 山形はband(点の縦配置)の外側位置に置くだけで、横位置(x)・インジケーター幅は変えない。
 const BAND_DOT_GAP = 4;
-const CHEVRON_HALF_W = 2.3, CHEVRON_H = 1.6, CHEVRON_GAP = 2.6;
+const BAND_DOT_OFFSET = 3.8; // band2: 中央から上下への点オフセット(点の縁が3px以上離れるよう半径2.3に対して設定)
+const CHEVRON_HALF_W = 3.2, CHEVRON_H = 2.0, CHEVRON_GAP = 3.4;
 function chevronPath(cx, cy, pointing){
   // pointing:'up' => ^ 形状(頂点が上), 'down' => v 形状(頂点が下)
   const apexY = pointing === 'up' ? cy - CHEVRON_H : cy + CHEVRON_H;
@@ -503,9 +504,9 @@ function updateBandIndicator(indicatorEl, textEl, band, statClass, change){
     if(dot2) dot2.style.display = 'none';
     topY = centerY; bottomY = centerY;
   } else {
-    if(dot1){ dot1.setAttribute('cx', dotX); dot1.setAttribute('cy', centerY - 3); dot1.style.display = ''; }
-    if(dot2){ dot2.setAttribute('cx', dotX); dot2.setAttribute('cy', centerY + 3); dot2.style.display = ''; }
-    topY = centerY - 3; bottomY = centerY + 3;
+    if(dot1){ dot1.setAttribute('cx', dotX); dot1.setAttribute('cy', centerY - BAND_DOT_OFFSET); dot1.style.display = ''; }
+    if(dot2){ dot2.setAttribute('cx', dotX); dot2.setAttribute('cy', centerY + BAND_DOT_OFFSET); dot2.style.display = ''; }
+    topY = centerY - BAND_DOT_OFFSET; bottomY = centerY + BAND_DOT_OFFSET;
   }
 
   const showChevrons = change === 'closer' || change === 'farther';

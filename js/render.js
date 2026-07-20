@@ -27,10 +27,10 @@ function createBandIndicator(className){
   chevronTop.style.display = 'none';
   const dot1 = document.createElementNS(SVG_NS,'circle');
   dot1.setAttribute('class','band-dot band-dot-1');
-  dot1.setAttribute('r','1.7');
+  dot1.setAttribute('r','2.3');
   const dot2 = document.createElementNS(SVG_NS,'circle');
   dot2.setAttribute('class','band-dot band-dot-2');
-  dot2.setAttribute('r','1.7');
+  dot2.setAttribute('r','2.3');
   const chevronBottom = document.createElementNS(SVG_NS,'path');
   chevronBottom.setAttribute('class','band-chevron band-chevron-bottom');
   chevronBottom.style.display = 'none';
