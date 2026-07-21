@@ -210,6 +210,13 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
    クリック判定・読み上げ・LEVEL背景色には一切影響させない。 */
 .iso-cell .cell-keyhole{fill:var(--bone);opacity:0.4;}
 
+/* Prototype 07.1: 自動解読済みのsealed-fixedセル。中央には他の数字マスと同じ位置・同等
+   サイズで数字を表示し(repair-revealed-fixedと同系色だが区別できるよう斜体にする)、
+   鍵穴自体は縮小して隅へ残す(ensureSealedKeyhole側で位置とサイズを切り替える)。
+   交換可否(isRepairUnlocked)には一切影響しない、見た目だけの区別。 */
+.iso-cell.decoded-sealed .cube-label{fill:var(--bone);font-style:italic;}
+.iso-cell.decoded-sealed .cell-keyhole{opacity:0.55;}
+
 /* unlocked(未確定)セル: 破線の縁取りで区別する。正誤は一切表さない。 */
 .iso-cell.repair-unlocked .cube-face{stroke:var(--brass);stroke-width:1.8;stroke-dasharray:4,3;}
 .iso-cell.repair-unlocked .cube-label{fill:var(--warn);}
@@ -313,6 +320,10 @@ button:disabled:hover{background:transparent;border-color:var(--brass-dim);color
         315からの距離を示す縦点(1個/2個)が付きます。柱や空間対角線などの状態はマスを選ぶと
         近くにバッジで表示されます。交換直後は影響したラインへ、点の上下に向き付きの山形を
         一時表示します。内向き(点へ収束)は315に近づいたことを、外向き(点から拡散)は315から離れたことを示します。
+        交換で成立させたラインは、選択を変えたり他のマスを交換したりしても、成立している間は
+        ＝表示のままです(崩れると元の↑/↓へ戻ります)。ラインが成立して封印マスが残り1個になると、
+        315との差から自動的に解読されます。小さな鍵穴が隅に残ったままの数字は、そうして
+        自動解読された固定マスです。
         まず、複数の↑が重なる大きめの金色の
         数字と、複数の↓が重なる小さめの金色の数字を交換候補にしてみましょう。
       </div>

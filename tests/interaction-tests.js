@@ -1226,6 +1226,285 @@ console.log('== behavioral checks (jsdom + ローカルHTTPサーバー) ==');
     }
   }
 
+  console.log('== Prototype 07.1: 成立ラインの継続表示 ==');
+  {
+    const { dom } = await loadPage();
+    const { doc, evalW } = helpers(dom);
+
+    check('Prototype 07初期状態では自動解読が発生しない', evalW('decodedSealedCells.size') === 0);
+    check('初期状態ではsolvedViaSwapLineKeysが空', evalW('solvedViaSwapLineKeys.size') === 0);
+
+    // 直接状態を操作して確認する(candidateの実際の交換手順には依存しない)。
+    // 既に常時成立しているinactive行ラインを1本使い、solvedViaSwapLineKeysへ追加した場合だけ
+    // ＝が表示され、追加していなければ従来どおり非表示のままであることを確認する。
+    const before = evalW(`
+      (function(){
+        function directText(el){ let o=''; el.childNodes.forEach(n=>{ if(n.nodeType===3) o+=n.textContent; }); return o; }
+        const eqLine = ALL_LINES.find(l => l.type==='row' && measureLine(repairState, l) === '=');
+        if(!eqLine) return { found:false };
+        window.__testEqLineKey = eqLine.key;
+        window.__testEqLineL = eqLine.cells[0].z+1;
+        window.__testEqLineR = eqLine.cells[0].y;
+        renderAll();
+        const el = document.querySelector('.row-wall-label[data-l="'+window.__testEqLineL+'"][data-r="'+window.__testEqLineR+'"]');
+        const eqSymbol = document.querySelector('.row-wall-eq[data-l="'+window.__testEqLineL+'"][data-r="'+window.__testEqLineR+'"]');
+        return { found:true, text: directText(el), eqShown: !!eqSymbol && eqSymbol.style.display !== 'none' };
+      })()
+    `);
+    check('追跡していない成立ライン(初期成立)は従来どおり＝を表示しない', before.found && before.text === '' && before.eqShown === false);
+
+    const afterTracked = evalW(`
+      (function(){
+        function directText(el){ let o=''; el.childNodes.forEach(n=>{ if(n.nodeType===3) o+=n.textContent; }); return o; }
+        solvedViaSwapLineKeys.add(window.__testEqLineKey);
+        renderAll();
+        const el = document.querySelector('.row-wall-label[data-l="'+window.__testEqLineL+'"][data-r="'+window.__testEqLineR+'"]');
+        const eqSymbol = document.querySelector('.row-wall-eq[data-l="'+window.__testEqLineL+'"][data-r="'+window.__testEqLineR+'"]');
+        return { text: directText(el), eqShown: !!eqSymbol && eqSymbol.style.display !== 'none' };
+      })()
+    `);
+    check('solvedViaSwapLineKeysへ追加すると＝を継続表示する', afterTracked.text === '' && afterTracked.eqShown === true);
+
+    // 崩れた場合(現在の実ステータスが＝でなくなった場合)は、記録が残っていても表示しない。
+    const afterBroken = evalW(`
+      (function(){
+        function directText(el){ let o=''; el.childNodes.forEach(n=>{ if(n.nodeType===3) o+=n.textContent; }); return o; }
+        // 追跡はそのままに、lineStatusesが'='以外を返すactiveな行ラインで同じ条件を確認する。
+        const activeLine = ALL_LINES.find(l => l.type==='row' &&
+          l.cells.filter(c => isRepairUnlocked(c.z+1,c.y,c.x)).length === 2 &&
+          measureLine(repairState, l) !== '=');
+        if(!activeLine) return { found:false };
+        solvedViaSwapLineKeys.add(activeLine.key); // 記録だけ先に入れる(実際には崩れた後の想定)
+        renderAll();
+        const L = activeLine.cells[0].z+1, r = activeLine.cells[0].y;
+        const el = document.querySelector('.row-wall-label[data-l="'+L+'"][data-r="'+r+'"]');
+        const eqSymbol = document.querySelector('.row-wall-eq[data-l="'+L+'"][data-r="'+r+'"]');
+        return { found:true, eqShown: !!eqSymbol && eqSymbol.style.display !== 'none', text: directText(el) };
+      })()
+    `);
+    check('現在の実状態が＝でなければ、記録が残っていても＝を表示しない',
+      afterBroken.found && afterBroken.eqShown === false && (afterBroken.text === '↑' || afterBroken.text === '↓'));
+
+    // Reset で記録が消える
+    evalW('resetPuzzle()');
+    check('Resetでsolved ViaSwapLineKeysが空になる', evalW('solvedViaSwapLineKeys.size') === 0);
+  }
+
+  console.log('== Prototype 07.1: 成立履歴の追加のみ・削除しないライフサイクル(実交換) ==');
+  {
+    const { dom } = await loadPage();
+    const { evalW } = helpers(dom);
+
+    // 初期状態から、非成立→成立となる実際の交換を1件探す(座標・数字はテスト内部だけで使う)。
+    const solvingPair = evalW(`
+      (function(){
+        for(let i=0;i<REPAIR_CELLS.length;i++){
+          for(let j=i+1;j<REPAIR_CELLS.length;j++){
+            const a = REPAIR_CELLS[i], b = REPAIR_CELLS[j];
+            const before = repairState;
+            const after = swapRepairCells(before, a, b);
+            const newlySolved = ALL_LINES.filter(l => measureLine(before,l) !== '=' && measureLine(after,l) === '=');
+            const alreadyEqTouched = ALL_LINES.some(l =>
+              (lineIncludesCell(l,a) || lineIncludesCell(l,b)) &&
+              measureLine(before,l) === '=' && measureLine(after,l) === '=');
+            if(newlySolved.length > 0) return { i, j, newlySolvedKeys: newlySolved.map(l=>l.key), alreadyEqTouched };
+          }
+        }
+        return null;
+      })()
+    `);
+    check('非成立→成立となる実交換が見つかる(前提条件)', !!solvingPair && solvingPair.newlySolvedKeys.length > 0);
+
+    if(solvingPair){
+      // autoDecodeSealedCellsの実呼び出しをラップし、実際に使われた寄与ライン(contributingLineKeys)を捕捉する。
+      // (関数自体は差し替えず、戻り値を横取りするだけ。安全のため直後に元へ戻す。)
+      evalW(`
+        window.__origAutoDecodeForTest = autoDecodeSealedCells;
+        window.__capturedContributing = null;
+        autoDecodeSealedCells = function(){
+          const result = window.__origAutoDecodeForTest.apply(this, arguments);
+          window.__capturedContributing = Array.from(result.contributingLineKeys);
+          return result;
+        };
+      `);
+
+      const sizeBeforeSolve = evalW('solvedViaSwapLineKeys.size');
+      const decodedSizeBeforeSolve = evalW('decodedSealedCells.size');
+      await evalW(`triggerSwap(REPAIR_CELLS[${solvingPair.i}], REPAIR_CELLS[${solvingPair.j}])`);
+      await new Promise(r=>setTimeout(r, evalW('SWAP_ANIM_MS') + 150));
+
+      evalW('autoDecodeSealedCells = window.__origAutoDecodeForTest;'); // ラップを元へ戻す
+
+      const afterSolve = evalW(`({
+        size: solvedViaSwapLineKeys.size,
+        decodedSize: decodedSealedCells.size,
+        allNewPresent: ${JSON.stringify(solvingPair.newlySolvedKeys)}.every(k => solvedViaSwapLineKeys.has(k)),
+        contributing: window.__capturedContributing || [],
+      })`);
+      check('非成立から成立へ変わったラインは履歴へ追加される(自動解読の寄与ライン追加分を含んでもよい)',
+        afterSolve.allNewPresent && afterSolve.size >= sizeBeforeSolve + solvingPair.newlySolvedKeys.length);
+
+      if(afterSolve.decodedSize === decodedSizeBeforeSolve){
+        // 自動解読が発生しなかった場合だけ、増分を厳密比較できる
+        // (触れただけの成立ライン=交換前後とも成立、は対象に含まれていないことの直接証拠になる)。
+        check('自動解読が発生しない場合、履歴の増分はnewlySolvedの件数と厳密に一致する(触れただけのラインは含まれない)',
+          afterSolve.size === sizeBeforeSolve + solvingPair.newlySolvedKeys.length);
+      } else {
+        check('自動解読に実際に使った寄与ラインが履歴へ追加される',
+          afterSolve.contributing.length > 0 &&
+          evalW(`${JSON.stringify(afterSolve.contributing)}.every(k => solvedViaSwapLineKeys.has(k))`));
+      }
+
+      // 今成立している(履歴入りの)いずれかのラインを、後続の実交換で崩す組を探す。
+      const trackedKey = solvingPair.newlySolvedKeys[0];
+      const breakingPair = evalW(`
+        (function(){
+          const trackedLine = ALL_LINES.find(l => l.key === ${JSON.stringify(trackedKey)});
+          for(let i=0;i<REPAIR_CELLS.length;i++){
+            for(let j=i+1;j<REPAIR_CELLS.length;j++){
+              const a = REPAIR_CELLS[i], b = REPAIR_CELLS[j];
+              if(!isRepairUnlocked(a.L,a.r,a.c) || !isRepairUnlocked(b.L,b.r,b.c)) continue;
+              const before = repairState;
+              const after = swapRepairCells(before, a, b);
+              if(measureLine(before, trackedLine) === '=' && measureLine(after, trackedLine) !== '='){
+                return { i, j };
+              }
+            }
+          }
+          return null;
+        })()
+      `);
+      check('履歴ラインを崩す実交換が見つかる(前提条件)', !!breakingPair);
+
+      if(breakingPair){
+        await evalW(`triggerSwap(REPAIR_CELLS[${breakingPair.i}], REPAIR_CELLS[${breakingPair.j}])`);
+        await new Promise(r=>setTimeout(r, evalW('SWAP_ANIM_MS') + 150));
+
+        const afterBreak = evalW(`({
+          stillInHistory: solvedViaSwapLineKeys.has(${JSON.stringify(trackedKey)}),
+          currentStatus: measureLine(repairState, ALL_LINES.find(l=>l.key===${JSON.stringify(trackedKey)})),
+        })`);
+        check('崩した後も履歴(Set)には残る', afterBreak.stillInHistory === true);
+        check('崩した後の現在状態は↑または↓', afterBreak.currentStatus === '↑' || afterBreak.currentStatus === '↓');
+
+        await evalW('undoSwap()');
+        const afterUndo = evalW(`({
+          stillInHistory: solvedViaSwapLineKeys.has(${JSON.stringify(trackedKey)}),
+          currentStatus: measureLine(repairState, ALL_LINES.find(l=>l.key===${JSON.stringify(trackedKey)})),
+        })`);
+        check('崩した交換をUndoすると履歴が残っているため現在状態も＝へ戻る',
+          afterUndo.stillInHistory === true && afterUndo.currentStatus === '=');
+      }
+    }
+  }
+
+  console.log('== Prototype 07.1: 鍵マス自動解読 ==');
+  {
+    const { dom } = await loadPage();
+    const { doc, evalW } = helpers(dom);
+
+    // 純粋関数autoDecodeSealedCellsが公開情報だけで呼ばれていること(repairState等は渡すが、
+    // 内部で未解読の封印値へアクセスしないことは repair-tests.js の pure_logic テストで検証済み)。
+    // ここではUI側の配線(状態注入 -> 描画)だけを確認する。
+    const sealedInfo = evalW(`
+      (function(){
+        for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+          if(cellPresentationState(L,r,c) === 'sealed-fixed') return {L,r,c,key: L+'-'+r+'-'+c};
+        }
+        return null;
+      })()
+    `);
+    check('sealed-fixedセルが見つかる(前提条件)', !!sealedInfo);
+
+    const beforeDecode = evalW(`
+      (function(){
+        const el = document.querySelector('.iso-cell[data-l="${sealedInfo.L}"][data-r="${sealedInfo.r}"][data-c="${sealedInfo.c}"]');
+        const label = el.querySelector('.cube-label');
+        return {
+          text: label.textContent,
+          keyholeCount: el.querySelectorAll('.cell-keyhole').length,
+          decodedClass: el.classList.contains('decoded-sealed'),
+        };
+      })()
+    `);
+    check('未解読sealed-fixedは数字なし・鍵穴あり・decoded-sealedなし',
+      beforeDecode.text === '' && beforeDecode.keyholeCount === 1 && beforeDecode.decodedClass === false);
+
+    // decodedSealedCellsへ直接注入して描画配線だけを確認する(算出ロジック自体はrepair-tests.js側)。
+    const afterDecode = evalW(`
+      (function(){
+        decodedSealedCells.set('${sealedInfo.key}', 42);
+        renderAll();
+        const el = document.querySelector('.iso-cell[data-l="${sealedInfo.L}"][data-r="${sealedInfo.r}"][data-c="${sealedInfo.c}"]');
+        const label = el.querySelector('.cube-label');
+        return {
+          text: label.textContent,
+          keyholeCount: el.querySelectorAll('.cell-keyhole').length,
+          decodedClass: el.classList.contains('decoded-sealed'),
+          unlocked: isRepairUnlocked(${sealedInfo.L},${sealedInfo.r},${sealedInfo.c}),
+        };
+      })()
+    `);
+    check('自動解読値が中央へ表示され、小型鍵穴も残る',
+      afterDecode.text === '42' && afterDecode.keyholeCount === 1 && afterDecode.decodedClass === true);
+    check('自動解読セルが交換対象にならない(isRepairUnlockedはfalseのまま)', afterDecode.unlocked === false);
+
+    const afterRerender = evalW(`
+      (function(){
+        renderAll(); renderAll();
+        const el = document.querySelector('.iso-cell[data-l="${sealedInfo.L}"][data-r="${sealedInfo.r}"][data-c="${sealedInfo.c}"]');
+        return el.querySelectorAll('.cell-keyhole').length;
+      })()
+    `);
+    check('renderAllを繰り返しても鍵穴が増殖しない', afterRerender === 1);
+
+    // 未解読sealed-fixedの値がDOM属性へ漏れない(別セルで確認)
+    const leakCheck = evalW(`
+      (function(){
+        let leak = 0, checked = 0;
+        for(let L=1; L<=LEVELS; L++) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+          if(cellPresentationState(L,r,c) !== 'sealed-fixed') continue;
+          if(decodedSealedCells.has(L+'-'+r+'-'+c)) continue; // 今回意図的に解読させたセルは除外
+          checked++;
+          const el = document.querySelector('.iso-cell[data-l="'+L+'"][data-r="'+r+'"][data-c="'+c+'"]');
+          const label = el.querySelector('.cube-label');
+          if(label.textContent !== '') leak++;
+          const title = el.querySelector('title');
+          if(title && title.textContent) leak++;
+          for(const attr of Array.from(el.attributes)){
+            if(attr.name==='data-key' || attr.name==='data-l' || attr.name==='data-r' || attr.name==='data-c') continue; // 座標識別用、値ではない
+            if((attr.name==='title' || attr.name==='aria-label' || attr.name.startsWith('data-')) && /[1-9][0-9]{0,2}/.test(attr.value)) leak++;
+          }
+        }
+        return { leak, checked };
+      })()
+    `);
+    check('未解読sealed-fixedの値がtextContent/aria-label/title/data属性へ漏れない',
+      leakCheck.checked > 0 && leakCheck.leak === 0);
+
+    // Undo後も解読値・記録が残る(実際の交換を1回行い、その後にUndoする)
+    evalW(`decodedSealedCells.set('${sealedInfo.key}', 42)`); // 上のresetを経ていないので既に入っている想定だが明示しておく
+    await evalW(`triggerSwap(REPAIR_CELLS[0], REPAIR_CELLS[1])`);
+    await new Promise(r=>setTimeout(r, evalW('SWAP_ANIM_MS') + 150));
+    await evalW('undoSwap()');
+    const afterUndo = evalW(`decodedSealedCells.get('${sealedInfo.key}')`);
+    check('Undo後も解読値が残る', afterUndo === 42);
+
+    // Reset後は解読値・継続記録が消える
+    evalW('resetPuzzle()');
+    check('Reset後は解読値が消える', evalW('decodedSealedCells.size') === 0);
+    check('Reset後は継続＝記録も消える', evalW('solvedViaSwapLineKeys.size') === 0);
+  }
+
+  console.log('== Prototype 07.1: 失敗メッセージ・エラーなし ==');
+  {
+    const { dom, errors } = await loadPage();
+    const { evalW } = helpers(dom);
+    await evalW(`triggerSwap(REPAIR_CELLS[0], REPAIR_CELLS[1])`);
+    await new Promise(r=>setTimeout(r, evalW('SWAP_ANIM_MS') + 150));
+    check('自動解読・継続表示の追加後もページエラーが発生しない', errors.length === 0);
+  }
+
   server.close();
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);

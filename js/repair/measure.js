@@ -69,3 +69,70 @@ function analyzeAffectedLineChanges(lines, beforeGrid, afterGrid, swappedCells){
       change: classifyLineChange(lineSum(beforeGrid, line), lineSum(afterGrid, line)),
     }));
 }
+
+// ---- 自動解読(315から一意に算出できる封印固定セルだけを求める) ----
+// 呼び出し側(repair-main.js)が「現在のライン状態(=/↑/↓)」と「公開済みの値だけ」を渡す純粋関数。
+// correctValueやCUBE_DATAの封印値には一切アクセスできない構造にする(引数として渡さない)。
+//
+// lines            : buildLines109()が返す、{key, cells:[{z,y,x},...]} の配列(構造は変更しない)
+// lineStatusMap    : Map<lineKey, '='|'↑'|'↓'> (呼び出し側がmeasureLine等で計算済みのものを渡す)
+// knownValues      : Map<cellKey, number> (movableの現在値 + revealed-fixedの値 + 既に解読済みsealedの値)
+// cellKeyOf        : ({z,y,x}) => cellKey (呼び出し側の座標系変換を再利用するための関数、副作用なし)
+//
+// 戻り値: { decoded: Map<cellKey, number>, contributingLineKeys: Set<lineKey> }
+//   decoded              : 今回新たに解読できた値だけ(knownValuesに既にある値は上書きしない)
+//   contributingLineKeys : 解読(単独ラインでも、伝播後の再解読でも)に使われたラインのkey集合
+// 競合(同じセルへ異なる値)が出たセルは解読せず、decodedへ含めない。
+function autoDecodeSealedCells(lines, lineStatusMap, knownValues, cellKeyOf){
+  const working = new Map(knownValues);
+  const decoded = new Map();
+  const conflicted = new Set();
+  const contributorsByCell = new Map(); // cellKey -> Set<lineKey> (現在のdecoded値に一致した寄与ラインだけ)
+
+  let changed = true;
+  while(changed){
+    changed = false;
+    // このラウンド内では「ラウンド開始時点のworking」を基準に全ラインの提案を集め、
+    // 同一ラウンド内で複数ラインが同じセルへ異なる値を提案した場合も競合として検出できるようにする
+    // (提案を集め切ってからまとめてworkingへ反映する: 逐次反映すると先に処理したラインの結果が
+    //  後続ラインの「既知」に混入し、本来ラウンド内で起きるはずの競合を見逃してしまうため)。
+    const roundWorking = working;
+    const proposals = new Map(); // cellKey -> [{value, lineKey}]
+    for(const line of lines){
+      if(lineStatusMap.get(line.key) !== '=') continue;
+      const keys = line.cells.map(cellKeyOf);
+      const unknownKeys = keys.filter(k => !roundWorking.has(k) && !conflicted.has(k));
+      if(unknownKeys.length !== 1) continue;
+      const targetKey = unknownKeys[0];
+
+      const knownSum = keys.reduce((sum, k) => roundWorking.has(k) ? sum + roundWorking.get(k) : sum, 0);
+      const value = 315 - knownSum;
+      if(!Number.isInteger(value) || value < 1 || value > 125) continue;
+
+      if(!proposals.has(targetKey)) proposals.set(targetKey, []);
+      proposals.get(targetKey).push({ value, lineKey: line.key });
+    }
+
+    for(const [key, props] of proposals){
+      const distinctValues = new Set(props.map(p => p.value));
+      if(distinctValues.size > 1){
+        // 同一ラウンド内で異なる値が提案された: 競合として扱い、以後このセルは対象から外す。
+        conflicted.add(key);
+        changed = true;
+        continue;
+      }
+      const value = props[0].value;
+      decoded.set(key, value);
+      working.set(key, value);
+      contributorsByCell.set(key, new Set(props.map(p => p.lineKey)));
+      changed = true;
+    }
+  }
+
+  const contributingLineKeys = new Set();
+  for(const key of decoded.keys()){
+    for(const lineKey of contributorsByCell.get(key)) contributingLineKeys.add(lineKey);
+  }
+
+  return { decoded, contributingLineKeys };
+}

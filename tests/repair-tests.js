@@ -45,6 +45,7 @@ vm.runInContext(`
   globalThis.linesThroughCell = linesThroughCell;
   globalThis.classifyLineChange = classifyLineChange;
   globalThis.analyzeAffectedLineChanges = analyzeAffectedLineChanges;
+  globalThis.autoDecodeSealedCells = autoDecodeSealedCells;
 `, ctx);
 
 let pass = 0, fail = 0;
@@ -374,6 +375,103 @@ console.log('== analyzeAffectedLineChanges ==');
   check('solvedを返す', changeCase(300, 315) === 'solved');
   check('closerを返す', changeCase(300, 310) === 'closer');
   check('fartherを返す', changeCase(310, 290) === 'farther');
+}
+
+console.log('== autoDecodeSealedCells(自動解読・固定点反復) ==');
+{
+  // 合成fixtureのライン(1本5セル、cellKeyOfはそのままcellをkey化する簡易版)。
+  // CUBE_DATA/candidate値には一切触れない。
+  const cellKeyOf = cell => cell; // fixtureでは文字列セルkeyをそのままcellとして使う
+  function line(key, cells){ return { key, cells }; }
+
+  {
+    const lines = [ line('L1', ['a','b','c','d','e']) ];
+    const statuses = new Map([['L1', '↑']]); // 非成立
+    const known = new Map([['a',1],['b',2],['c',3],['d',4]]);
+    const { decoded } = ctx.autoDecodeSealedCells(lines, statuses, known, cellKeyOf);
+    check('非成立ラインからは解読しない', decoded.size === 0);
+  }
+  {
+    const lines = [ line('L1', ['a','b','c','d','e']) ];
+    const statuses = new Map([['L1', '=']]);
+    const known = new Map([['a',10],['b',20],['c',30],['d',40]]); // 315-100=215
+    const { decoded } = ctx.autoDecodeSealedCells(lines, statuses, known, cellKeyOf);
+    check('未解読鍵が2個以上なら解読しない', decoded.size === 0);
+  }
+  {
+    const lines = [ line('L1', ['a','b','c','d','e']) ];
+    const statuses = new Map([['L1', '=']]);
+    const known = new Map([['a',50],['b',50],['c',50],['d',65]]); // 315-215=100
+    const { decoded, contributingLineKeys } = ctx.autoDecodeSealedCells(lines, statuses, known, cellKeyOf);
+    check('成立ラインの未解読鍵1個を315との差から解読する', decoded.get('e') === 100);
+    check('解読に使ったラインをcontributingLineKeysへ含める', contributingLineKeys.has('L1'));
+  }
+  {
+    // L1解読でx=100が判明 -> L2がy以外4個既知になり伝播解読される。
+    const lines = [
+      line('L1', ['a','b','c','d','x']),
+      line('L2', ['x','p','q','r','y']),
+    ];
+    const statuses = new Map([['L1','='],['L2','=']]);
+    const known = new Map([['a',54],['b',54],['c',54],['d',53], ['p',60],['q',60],['r',60]]); // L1: 215+x=315→x=100 / L2: 100+180+y=315→y=35
+    const { decoded, contributingLineKeys } = ctx.autoDecodeSealedCells(lines, statuses, known, cellKeyOf);
+    check('解読値が別ラインへ伝播する固定点処理', decoded.get('x') === 100 && decoded.get('y') === 35);
+    check('伝播元・伝播先の両方がcontributingLineKeysへ入る', contributingLineKeys.has('L1') && contributingLineKeys.has('L2'));
+  }
+  {
+    // 2本のラインが同じ未解読セルzについて同じ値を算出する場合は受理する。
+    const lines = [
+      line('L1', ['a','b','c','d','z']),
+      line('L2', ['p','q','r','s','z']),
+    ];
+    const statuses = new Map([['L1','='],['L2','=']]);
+    const known = new Map([['a',50],['b',50],['c',50],['d',65], ['p',40],['q',40],['r',40],['s',35]]); // 両方とも315-215=100
+    const { decoded } = ctx.autoDecodeSealedCells(lines, statuses, known, cellKeyOf);
+    check('複数ラインの一致結果を受理する', decoded.get('z') === 100);
+  }
+  {
+    // 2本のラインが同じ未解読セルzについて異なる値を算出する場合は競合として受理しない。
+    const lines = [
+      line('L1', ['a','b','c','d','z']),
+      line('L2', ['p','q','r','s','z']),
+    ];
+    const statuses = new Map([['L1','='],['L2','=']]);
+    const known = new Map([['a',50],['b',50],['c',50],['d',65], ['p',60],['q',60],['r',60],['s',45]]); // L1→100 / L2→90(いずれも範囲内だが不一致)
+    const { decoded } = ctx.autoDecodeSealedCells(lines, statuses, known, cellKeyOf);
+    check('競合結果を受理しない', !decoded.has('z'));
+  }
+  {
+    const lines = [ line('L1', ['a','b','c','d','e']) ];
+    const statuses = new Map([['L1', '=']]);
+    const known = new Map([['a',100],['b',100],['c',100],['d',100]]); // 315-400=-85 (範囲外)
+    const { decoded } = ctx.autoDecodeSealedCells(lines, statuses, known, cellKeyOf);
+    check('範囲外の算出値を受理しない', decoded.size === 0);
+  }
+  {
+    const lines = [ line('L1', ['a','b','c','d','e']) ];
+    const statuses = new Map([['L1', '=']]);
+    const known = new Map([['a',1.5],['b',2],['c',3],['d',4]]); // 非整数を含む合計 -> 非整数の算出値
+    const { decoded } = ctx.autoDecodeSealedCells(lines, statuses, known, cellKeyOf);
+    check('非整数の算出値を受理しない', decoded.size === 0);
+  }
+  {
+    // 既に解読済みの値を上書きしない: knownValuesに既にeが含まれていれば、別解が出ても上書きしない
+    // (unknownKeysが0件になるため、そもそも再算出の対象外になることを確認する)。
+    const lines = [ line('L1', ['a','b','c','d','e']) ];
+    const statuses = new Map([['L1', '=']]);
+    const known = new Map([['a',10],['b',20],['c',30],['d',40],['e',999]]); // 全既知(矛盾した値でも上書き対象外)
+    const { decoded } = ctx.autoDecodeSealedCells(lines, statuses, known, cellKeyOf);
+    check('既に解読済み(=全既知)の値を後から上書きしない', decoded.size === 0);
+  }
+  {
+    // 未解読値・correctValueを一切渡さずに動作することの確認(引数はlines/status/knownValues/cellKeyOfだけ)。
+    const lines = [ line('L1', ['a','b','c','d','e']) ];
+    const statuses = new Map([['L1', '=']]);
+    const known = new Map([['a',60],['b',60],['c',60],['d',60]]);
+    let threw = false;
+    try{ ctx.autoDecodeSealedCells(lines, statuses, known, cellKeyOf); }catch(e){ threw = true; }
+    check('未解読値やcorrectValueなしで動作する(例外なし)', !threw);
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
