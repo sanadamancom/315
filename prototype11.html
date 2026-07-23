@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>315修復パズル Prototype 11.0 — ブラインド3D測定デモ</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family:"Hiragino Sans","Yu Gothic",sans-serif; background:#12141a; color:#e8e8ec; margin:0; padding:24px; }
+  h1 { font-size:18px; margin-bottom:4px; }
+  .sub { color:#9aa; font-size:12px; margin-bottom:20px; line-height:1.6; }
+  .layout { display:flex; gap:28px; flex-wrap:wrap; align-items:flex-start; }
+
+  .levels { display:flex; gap:20px; flex-wrap:wrap; }
+  .levelBox { background:#181b23; border-radius:10px; padding:12px; }
+  .levelBox h3 { margin:0 0 8px; font-size:12px; color:#9ac; text-align:center; }
+
+  .grid { display:grid; grid-template-columns: repeat(5, 44px); grid-template-rows: repeat(5, 44px); gap:3px; }
+  .cell {
+    display:flex; align-items:center; justify-content:center;
+    background:#232733; border-radius:6px; font-size:13px; color:#cfd3dc;
+    position:relative; user-select:none;
+  }
+  .cell.movable { background:#3a3320; color:#f2c14e; font-weight:bold; cursor:pointer; border:2px solid #6b5a24; }
+  .cell.movable:hover { background:#4a4128; }
+  .cell.selected { outline: 3px solid #7ee787; }
+  .cell.lineHi { outline: 3px solid #6fb3ff; }
+
+  .rowstat, .colstat {
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-size:14px; width:28px; line-height:1.1;
+  }
+  .rowstat .arrow, .colstat .arrow { font-size:14px; }
+  .rowstat .dots, .colstat .dots { font-size:8px; letter-spacing:1px; }
+  .rowstat.up .arrow, .colstat.up .arrow { color:#ff9d9d; }
+  .rowstat.down .arrow, .colstat.down .arrow { color:#7ee787; }
+  .rowstat.eq .arrow, .colstat.eq .arrow { color:#666; }
+  .withRowStats { display:grid; grid-template-columns: repeat(5, 44px) 28px; gap:3px; align-items:center; }
+  .colstats-row { display:grid; grid-template-columns: repeat(5, 44px); gap:3px; margin-top:3px; }
+  .diagInfo { margin-top:8px; font-size:10px; color:#9ac; line-height:1.6; }
+  .diagInfo .up { color:#ff9d9d; } .diagInfo .down { color:#7ee787; } .diagInfo .eq { color:#666; }
+
+  .panel { background:#1c1f28; border-radius:10px; padding:16px; width:380px; flex-shrink:0; }
+  .panel h2 { font-size:14px; margin:0 0 8px; }
+  .panel section { margin-bottom:16px; padding-bottom:14px; border-bottom:1px solid #2a2e3a; }
+  .panel section:last-child { border-bottom:none; }
+  label { display:block; font-size:11px; color:#9aa; margin:8px 0 2px; }
+  textarea, input[type=number], select {
+    width:100%; background:#12141a; color:#eee; border:1px solid #333; border-radius:6px;
+    padding:6px 8px; font-size:12px; font-family:inherit; resize:vertical;
+  }
+  textarea { min-height:44px; }
+  .radioRow { display:flex; gap:14px; font-size:12px; margin-top:4px; }
+  .radioRow label { display:flex; align-items:center; gap:4px; margin:0; color:#ccc; }
+
+  button { background:#2a3040; color:#eee; border:1px solid #444; border-radius:6px; padding:8px 14px; font-size:13px; cursor:pointer; margin-right:8px; margin-bottom:8px;}
+  button:hover:not(:disabled) { background:#353c50; }
+  button:disabled { opacity:0.4; cursor:not-allowed; }
+  button.primary { background:#3a5a3a; border-color:#7ee787; }
+  button.primary:hover:not(:disabled) { background:#4a7a4a; }
+  button.danger { background:#5a3030; border-color:#c77; }
+
+  .status { font-size:13px; line-height:1.8; }
+  .status b { color:#f2c14e; }
+  .otherLineResult { font-size:20px; text-align:center; padding:8px; background:#12141a; border-radius:8px; margin-top:6px; }
+  .otherLineResult .dots { font-size:11px; color:#9ac; margin-top:2px; letter-spacing:2px; }
+  .win { color:#7ee787; font-weight:bold; font-size:16px; margin-top:10px; }
+  .stuck { color:#ff9d9d; font-weight:bold; font-size:14px; margin-top:10px; }
+  .movecount { font-size:12px; color:#9ac; margin-top:6px;}
+  .pendingBanner {
+    background:#3a2f14; border:1px solid #6b5a24; color:#f2c14e;
+    border-radius:8px; padding:8px 12px; font-size:12px; margin-bottom:10px; line-height:1.6;
+    transition: background 0.15s;
+  }
+  .pendingBanner.flash { background:#5a4620; }
+  .warn { font-size:11px; color:#ff9d9d; margin-top:4px; }
+  .logbox { max-height:130px; overflow-y:auto; background:#12141a; border-radius:6px; padding:6px 8px; font-size:10px; color:#8a9; line-height:1.5; }
+  .logbox div { border-bottom:1px dashed #2a2e3a; padding:3px 0; }
+</style>
+</head>
+<body>
+
+<h1>315修復パズル Prototype 11.0 — ブラインド3D測定デモ</h1>
+<div class="sub">
+  5層×5×5=125セルを常時表示。金色セルのみ交換可能(可動セル)。各層の行・列・面対角線は常時、矢印(↑↓＝)とドット(●=小　●●=大)で状態表示する。<br>
+  柱・縦断面対角線・空間対角線(階層横断)は右パネルで選択し、該当5セルを全層で強調表示する。正確な合計・偏差値・セル単位の正誤は一切表示しない。
+</div>
+
+<div class="layout">
+  <div>
+    <div class="pendingBanner" id="pendingBanner" style="display:none;">
+      ⚠ 直前の交換の記録待ち：右パネルの「learned_from_change」を入力し「記録を確定」を押すまで、次の交換・Undo・Resetはできない。
+    </div>
+    <div class="levels" id="levels"></div>
+    <div class="movecount" id="moveCount">交換回数: 0 / probe使用: 0 / 2</div>
+  </div>
+
+  <div class="panel">
+    <section>
+      <h2>柱・断面対角線・空間対角線の確認</h2>
+      <label for="lineSelect">階層横断ライン(49本)から選択</label>
+      <select id="lineSelect"></select>
+      <div class="otherLineResult" id="otherLineResult">選択してください</div>
+    </section>
+
+    <section>
+      <h2>交換前の記録(必須)</h2>
+      <label>observed_public_information（今どのラインを見て判断したか）</label>
+      <textarea id="obsInfo"></textarea>
+      <label>considered_pair_count（検討したペア数）</label>
+      <input type="number" id="pairCount" min="0" step="1">
+      <label>reason（この交換を選ぶ理由）</label>
+      <textarea id="reason"></textarea>
+      <label>action_type</label>
+      <div class="radioRow">
+        <label><input type="radio" name="actionType" value="deduction" checked> deduction（推論）</label>
+        <label><input type="radio" name="actionType" value="probe"> probe（探り、残り<span id="probeLeft">2</span>回）</label>
+      </div>
+      <div id="probePurposeWrap" style="display:none;">
+        <label>probe_purpose_if_probe（何を確かめるための探りか）</label>
+        <textarea id="probePurpose"></textarea>
+      </div>
+      <div class="warn" id="preWarn"></div>
+    </section>
+
+    <section>
+      <h2>操作</h2>
+      <div class="status">可動セル(金色)を2つクリックして選択し、記録欄をすべて入力してから実行する。<br>
+      選択中: <b id="selectedInfo">なし</b></div>
+      <button id="execBtn" class="primary" disabled>交換を実行</button>
+      <div class="warn" id="afterWarn" style="display:none;">
+        直前の交換について「learned_from_change」を入力するまで、次の交換・Undo・Resetはできない。
+      </div>
+      <label id="learnedLabel" style="display:none;">learned_from_change（この交換で何が分かったか）</label>
+      <textarea id="learnedFromChange" style="display:none;"></textarea>
+      <button id="learnedSubmitBtn" style="display:none;">記録を確定</button>
+      <div>
+        <button id="undoBtn" disabled>Undo</button>
+        <button id="resetBtn">Reset</button>
+        <button id="exportBtn">JSONログexport</button>
+        <button id="stuckBtn" class="danger">手詰まり終了</button>
+      </div>
+      <div class="win" id="winMsg"></div>
+      <div class="stuck" id="stuckMsg"></div>
+    </section>
+
+    <section>
+      <h2>ログ</h2>
+      <div class="logbox" id="logbox"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ============================================================
+// 正規CUBE_DATA（js/repair/cube-data.js と同一の固定Perfect Magic Cube）
+// ============================================================
+const CUBE_DATA = [
+  [
+    [25, 16, 80, 104, 90],
+    [115, 98, 4, 1, 97],
+    [42, 111, 85, 2, 75],
+    [66, 72, 27, 102, 48],
+    [67, 18, 119, 106, 5],
+  ],
+  [
+    [91, 77, 71, 6, 70],
+    [52, 64, 117, 69, 13],
+    [30, 118, 21, 123, 23],
+    [26, 39, 92, 44, 114],
+    [116, 17, 14, 73, 95],
+  ],
+  [
+    [47, 61, 45, 76, 86],
+    [107, 43, 38, 33, 94],
+    [89, 68, 63, 58, 37],
+    [32, 93, 88, 83, 19],
+    [40, 50, 81, 65, 79],
+  ],
+  [
+    [31, 53, 112, 109, 10],
+    [12, 82, 34, 87, 100],
+    [103, 3, 105, 8, 96],
+    [113, 57, 9, 62, 74],
+    [56, 120, 55, 49, 35],
+  ],
+  [
+    [121, 108, 7, 20, 59],
+    [29, 28, 122, 125, 11],
+    [51, 15, 41, 124, 84],
+    [78, 54, 99, 24, 60],
+    [36, 110, 46, 22, 101],
+  ],
+];
+
+// ============================================================
+// 109ライン構築（lines109.js と意味的に同一）
+// ============================================================
+const N5 = 5;
+function buildLines109(){
+  const lines = [];
+  for(let z=0;z<N5;z++) for(let y=0;y<N5;y++){
+    const cells = []; for(let x=0;x<N5;x++) cells.push({z,y,x});
+    lines.push({ type:'row', key:`row-${z}-${y}`, cells });
+  }
+  for(let z=0;z<N5;z++) for(let x=0;x<N5;x++){
+    const cells = []; for(let y=0;y<N5;y++) cells.push({z,y,x});
+    lines.push({ type:'col', key:`col-${z}-${x}`, cells });
+  }
+  for(let y=0;y<N5;y++) for(let x=0;x<N5;x++){
+    const cells = []; for(let z=0;z<N5;z++) cells.push({z,y,x});
+    lines.push({ type:'pillar', key:`pillar-${y}-${x}`, cells });
+  }
+  for(let z=0;z<N5;z++){
+    lines.push({ type:'xy-main', key:`xy-main-${z}`, cells: Array.from({length:N5},(_,i)=>({z,y:i,x:i})) });
+    lines.push({ type:'xy-anti', key:`xy-anti-${z}`, cells: Array.from({length:N5},(_,i)=>({z,y:i,x:N5-1-i})) });
+  }
+  for(let y=0;y<N5;y++){
+    lines.push({ type:'xz-main', key:`xz-main-${y}`, cells: Array.from({length:N5},(_,i)=>({z:i,y,x:i})) });
+    lines.push({ type:'xz-anti', key:`xz-anti-${y}`, cells: Array.from({length:N5},(_,i)=>({z:i,y,x:N5-1-i})) });
+  }
+  for(let x=0;x<N5;x++){
+    lines.push({ type:'yz-main', key:`yz-main-${x}`, cells: Array.from({length:N5},(_,i)=>({z:i,y:i,x})) });
+    lines.push({ type:'yz-anti', key:`yz-anti-${x}`, cells: Array.from({length:N5},(_,i)=>({z:i,y:N5-1-i,x})) });
+  }
+  lines.push({ type:'space', key:'space-1', cells: Array.from({length:N5},(_,i)=>({z:i,y:i,x:i})) });
+  lines.push({ type:'space', key:'space-2', cells: Array.from({length:N5},(_,i)=>({z:i,y:i,x:N5-1-i})) });
+  lines.push({ type:'space', key:'space-3', cells: Array.from({length:N5},(_,i)=>({z:i,y:N5-1-i,x:i})) });
+  lines.push({ type:'space', key:'space-4', cells: Array.from({length:N5},(_,i)=>({z:N5-1-i,y:i,x:i})) });
+  return lines;
+}
+const LINES = buildLines109();
+const INLINE_TYPES = new Set(['row','col','xy-main','xy-anti']); // 各層内で常時stat表示するライン種別
+const OTHER_LINES = LINES.filter(l => !INLINE_TYPES.has(l.type)); // 柱・xz/yz対角・空間対角(49本)
+
+function otherLineLabel(line){
+  const parts = line.key.split('-');
+  switch(line.type){
+    case 'pillar': return `柱 行${Number(parts[1])+1}・列${Number(parts[2])+1}`;
+    case 'xz-main': return `縦断面 行${Number(parts[2])+1} ↘`;
+    case 'xz-anti': return `縦断面 行${Number(parts[2])+1} ↙`;
+    case 'yz-main': return `縦断面 列${Number(parts[2])+1} ↘`;
+    case 'yz-anti': return `縦断面 列${Number(parts[2])+1} ↙`;
+    case 'space':   return `空間対角線 ${ {'space-1':'A','space-2':'B','space-3':'C','space-4':'D'}[line.key] || line.key }`;
+    default: return line.key;
+  }
+}
+
+// ============================================================
+// 固定候補データ（seed=7）— 可動セルと初期表示値のみを平坦化して使用。
+// グループ／おとりの区別はUI・DOM・ログへ一切出力しない。
+// ============================================================
+const MOVABLE_RAW = [
+  {coord:{z:3,y:3,x:0}, initial:114},
+  {coord:{z:0,y:4,x:3}, initial:113},
+  {coord:{z:1,y:3,x:4}, initial:106},
+  {coord:{z:0,y:0,x:2}, initial:20},
+  {coord:{z:1,y:3,x:3}, initial:80},
+  {coord:{z:4,y:0,x:3}, initial:44},
+  {coord:{z:3,y:1,x:0}, initial:12},
+  {coord:{z:3,y:1,x:4}, initial:100},
+  {coord:{z:3,y:3,x:4}, initial:74},
+  {coord:{z:0,y:3,x:3}, initial:102},
+  {coord:{z:0,y:3,x:4}, initial:48},
+  {coord:{z:0,y:4,x:4}, initial:5},
+  {coord:{z:1,y:1,x:0}, initial:52},
+  {coord:{z:1,y:1,x:4}, initial:13},
+  {coord:{z:1,y:3,x:0}, initial:26},
+  {coord:{z:0,y:0,x:3}, initial:104},
+  {coord:{z:0,y:4,x:2}, initial:119},
+  {coord:{z:1,y:4,x:3}, initial:73},
+  {coord:{z:1,y:4,x:4}, initial:95},
+  {coord:{z:4,y:0,x:2}, initial:7},
+  {coord:{z:4,y:1,x:2}, initial:15},
+  {coord:{z:4,y:1,x:3}, initial:125},
+];
+function ck(c){ return `${c.z}-${c.y}-${c.x}`; }
+const MOVABLE_MAP = new Map(MOVABLE_RAW.map(m => [ck(m.coord), m]));
+
+// ============================================================
+// 状態
+// ============================================================
+const MAGIC = 315;
+const LARGE_THRESHOLD = 30;
+
+let board, selected, log, moveCount, probeUsed, history, status, pendingAfterSwap;
+
+function cloneBoard(b){ return b.map(l=>l.map(r=>r.slice())); }
+function initialBoard(){
+  const b = cloneBoard(CUBE_DATA);
+  for(const m of MOVABLE_RAW){ b[m.coord.z][m.coord.y][m.coord.x] = m.initial; }
+  return b;
+}
+function resetState(fullReset){
+  board = initialBoard();
+  selected = [];
+  moveCount = 0;
+  probeUsed = 0;
+  history = [];
+  status = 'active';
+  pendingAfterSwap = null;
+  if(fullReset) log = [];
+}
+
+// ============================================================
+// ライン測定（公開情報のみ: symbol/dotsのみ。exact sum/deviationは返さない）
+// ============================================================
+function lineSumOf(cells){
+  let s = 0;
+  for(const c of cells) s += board[c.z][c.y][c.x];
+  return s;
+}
+function lineStatusClass(sum){ if(sum===MAGIC) return 'eq'; return sum>MAGIC ? 'up':'down'; }
+function statusSymbol(sum){ if(sum===MAGIC) return '＝'; return sum>MAGIC ? '↑':'↓'; }
+function magnitudeDots(sum){
+  if(sum===MAGIC) return '';
+  const d = Math.abs(sum-MAGIC);
+  return d > LARGE_THRESHOLD ? '● ●' : '●';
+}
+function bandLabel(sum){
+  if(sum===MAGIC) return null;
+  return Math.abs(sum-MAGIC) > LARGE_THRESHOLD ? '大' : '小';
+}
+function publicStateOf(cells){
+  const sum = lineSumOf(cells);
+  return { symbol: statusSymbol(sum), band: bandLabel(sum) };
+}
+function allPublicLineStates(){
+  // ログ用: 全109ラインの公開状態(symbol/band)のみ。exact sum/deviationは含めない。
+  return LINES.map(line => {
+    const st = publicStateOf(line.cells);
+    return { key: line.key, symbol: st.symbol, band: st.band };
+  });
+}
+
+// ============================================================
+// DOM構築: 5層グリッド(withRowStats + colStats + diagInfo)
+// ============================================================
+const levelsDiv = document.getElementById('levels');
+const cellEls = {};        // "z-y-x" -> element
+const rowStatEls = {};     // "z-y" -> element
+const colStatEls = {};     // "z-x" -> element
+const diagEls = {};        // "z-main"/"z-anti" -> element
+
+// row/col ラインの cells を高速参照するためのマップ
+const rowLineOf = {}, colLineOf = {}, diagMainOf = {}, diagAntiOf = {};
+LINES.forEach(l => {
+  if(l.type==='row') rowLineOf[l.key] = l.cells;
+  if(l.type==='col') colLineOf[l.key] = l.cells;
+  if(l.type==='xy-main') diagMainOf[l.key] = l.cells;
+  if(l.type==='xy-anti') diagAntiOf[l.key] = l.cells;
+});
+
+for(let z=0; z<5; z++){
+  const box = document.createElement('div');
+  box.className = 'levelBox';
+  const h3 = document.createElement('h3');
+  h3.textContent = `LEVEL ${z+1}`;
+  box.appendChild(h3);
+
+  const withRowStats = document.createElement('div');
+  withRowStats.className = 'withRowStats';
+  for(let y=0; y<5; y++){
+    for(let x=0; x<5; x++){
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.z = z; cell.dataset.y = y; cell.dataset.x = x;
+      const key = `${z}-${y}-${x}`;
+      if(MOVABLE_MAP.has(key)){
+        cell.classList.add('movable');
+        cell.addEventListener('click', () => onCellClick(z,y,x));
+      }
+      withRowStats.appendChild(cell);
+      cellEls[key] = cell;
+    }
+    const rs = document.createElement('div');
+    rs.className = 'rowstat';
+    withRowStats.appendChild(rs);
+    rowStatEls[`${z}-${y}`] = rs;
+  }
+  box.appendChild(withRowStats);
+
+  const colStatsRow = document.createElement('div');
+  colStatsRow.className = 'colstats-row';
+  for(let x=0; x<5; x++){
+    const cs = document.createElement('div');
+    cs.className = 'colstat';
+    colStatsRow.appendChild(cs);
+    colStatEls[`${z}-${x}`] = cs;
+  }
+  box.appendChild(colStatsRow);
+
+  const diagInfo = document.createElement('div');
+  diagInfo.className = 'diagInfo';
+  box.appendChild(diagInfo);
+  diagEls[z] = diagInfo;
+
+  levelsDiv.appendChild(box);
+}
+
+const lineSelect = document.getElementById('lineSelect');
+const placeholderOpt = document.createElement('option');
+placeholderOpt.value = '';
+placeholderOpt.textContent = '-- 選択してください --';
+lineSelect.appendChild(placeholderOpt);
+OTHER_LINES.forEach((line) => {
+  const opt = document.createElement('option');
+  opt.value = line.key;
+  opt.textContent = otherLineLabel(line);
+  lineSelect.appendChild(opt);
+});
+lineSelect.addEventListener('change', renderOtherLineResult);
+
+// ============================================================
+// レンダリング
+// ============================================================
+function render(){
+  for(let z=0; z<5; z++) for(let y=0; y<5; y++) for(let x=0; x<5; x++){
+    const key = `${z}-${y}-${x}`;
+    const el = cellEls[key];
+    el.textContent = board[z][y][x];
+    el.classList.toggle('selected', selected.some(s => s.z===z&&s.y===y&&s.x===x));
+  }
+
+  for(let z=0; z<5; z++){
+    for(let y=0; y<5; y++){
+      const sum = lineSumOf(rowLineOf[`row-${z}-${y}`]);
+      const el = rowStatEls[`${z}-${y}`];
+      el.className = 'rowstat ' + lineStatusClass(sum);
+      el.innerHTML = `<div class="arrow">${statusSymbol(sum)}</div><div class="dots">${magnitudeDots(sum)}</div>`;
+    }
+    for(let x=0; x<5; x++){
+      const sum = lineSumOf(colLineOf[`col-${z}-${x}`]);
+      const el = colStatEls[`${z}-${x}`];
+      el.className = 'colstat ' + lineStatusClass(sum);
+      el.innerHTML = `<div class="arrow">${statusSymbol(sum)}</div><div class="dots">${magnitudeDots(sum)}</div>`;
+    }
+    const sMain = lineSumOf(diagMainOf[`xy-main-${z}`]);
+    const sAnti = lineSumOf(diagAntiOf[`xy-anti-${z}`]);
+    diagEls[z].innerHTML =
+      `面対角(↘): <span class="${lineStatusClass(sMain)}">${statusSymbol(sMain)}${magnitudeDots(sMain)}</span>　` +
+      `面対角(↙): <span class="${lineStatusClass(sAnti)}">${statusSymbol(sAnti)}${magnitudeDots(sAnti)}</span>`;
+  }
+
+  renderOtherLineResult();
+
+  document.getElementById('moveCount').textContent =
+    `交換回数: ${moveCount} / probe使用: ${probeUsed} / 2`;
+  document.getElementById('probeLeft').textContent = String(2 - probeUsed);
+  document.getElementById('selectedInfo').textContent =
+    selected.length === 0 ? 'なし' : selected.map(s => `(L${s.z+1},${s.y+1},${s.x+1})`).join(' / ');
+
+  const locked = status !== 'active';
+  document.getElementById('undoBtn').disabled = locked || history.length===0 || !!pendingAfterSwap;
+  document.getElementById('resetBtn').disabled = locked || !!pendingAfterSwap;
+  document.getElementById('stuckBtn').disabled = locked || !!pendingAfterSwap;
+  updateExecButtonState();
+
+  document.getElementById('pendingBanner').style.display = pendingAfterSwap ? 'block' : 'none';
+  document.getElementById('afterWarn').style.display = pendingAfterSwap ? 'block' : 'none';
+  document.getElementById('learnedLabel').style.display = pendingAfterSwap ? 'block' : 'none';
+  document.getElementById('learnedFromChange').style.display = pendingAfterSwap ? 'block' : 'none';
+  document.getElementById('learnedSubmitBtn').style.display = pendingAfterSwap ? 'inline-block' : 'none';
+
+  document.getElementById('winMsg').textContent = status === 'cleared' ? '修復完了' : '';
+  document.getElementById('stuckMsg').textContent = status === 'stuck' ? '手詰まりとして終了した。' : (status === 'aborted' ? '終了した。' : '');
+
+  renderLog();
+}
+
+function renderOtherLineResult(){
+  const keyVal = lineSelect.value;
+  Object.values(cellEls).forEach(el => el.classList.remove('lineHi'));
+  const resultDiv = document.getElementById('otherLineResult');
+  if(keyVal === ''){
+    resultDiv.innerHTML = '選択してください';
+    return;
+  }
+  const line = OTHER_LINES.find(l => l.key === keyVal);
+  for(const c of line.cells){ cellEls[`${c.z}-${c.y}-${c.x}`].classList.add('lineHi'); }
+  const sum = lineSumOf(line.cells);
+  resultDiv.innerHTML = `${statusSymbol(sum)}<div class="dots">${magnitudeDots(sum)}</div>`;
+}
+
+function renderLog(){
+  const box = document.getElementById('logbox');
+  box.innerHTML = log.map(e => `<div>${escapeHtml(JSON.stringify(e))}</div>`).join('');
+  box.scrollTop = box.scrollHeight;
+}
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ============================================================
+// セル選択・交換
+// ============================================================
+function onCellClick(z,y,x){
+  if(pendingAfterSwap){
+    document.getElementById('pendingBanner').classList.add('flash');
+    document.getElementById('learnedFromChange').focus();
+    setTimeout(() => document.getElementById('pendingBanner').classList.remove('flash'), 400);
+    return;
+  }
+  if(status !== 'active') return;
+  const already = selected.findIndex(s => s.z===z&&s.y===y&&s.x===x);
+  if(already >= 0){ selected.splice(already,1); render(); return; }
+  if(selected.length >= 2) return;
+  selected.push({z,y,x});
+  render();
+}
+
+function currentActionType(){
+  const r = document.querySelector('input[name=actionType]:checked');
+  return r ? r.value : 'deduction';
+}
+document.querySelectorAll('input[name=actionType]').forEach(r => {
+  r.addEventListener('change', () => {
+    document.getElementById('probePurposeWrap').style.display =
+      currentActionType() === 'probe' ? 'block' : 'none';
+    updateExecButtonState();
+  });
+});
+['obsInfo','pairCount','reason','probePurpose'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updateExecButtonState);
+});
+
+function preFieldsFilled(){
+  const obs = document.getElementById('obsInfo').value.trim();
+  const pc = document.getElementById('pairCount').value;
+  const reason = document.getElementById('reason').value.trim();
+  const type = currentActionType();
+  if(!obs || pc === '' || !reason) return false;
+  if(type === 'probe' && !document.getElementById('probePurpose').value.trim()) return false;
+  return true;
+}
+
+function updateExecButtonState(){
+  const btn = document.getElementById('execBtn');
+  const warn = document.getElementById('preWarn');
+  if(status !== 'active' || pendingAfterSwap){ btn.disabled = true; warn.textContent=''; return; }
+  const twoSelected = selected.length === 2;
+  const filled = preFieldsFilled();
+  const type = currentActionType();
+  let probeBlocked = false;
+  if(type === 'probe' && probeUsed >= 2) probeBlocked = true;
+  btn.disabled = !(twoSelected && filled && !probeBlocked);
+  if(probeBlocked){
+    warn.textContent = 'probeは上限2回に達している。この交換は実行できない。';
+  } else if(!twoSelected){
+    warn.textContent = '可動セルを2つ選択すること。';
+  } else if(!filled){
+    warn.textContent = '記録欄をすべて入力すること。';
+  } else {
+    warn.textContent = '';
+  }
+}
+
+document.getElementById('execBtn').addEventListener('click', () => {
+  if(status !== 'active' || pendingAfterSwap) return;
+  if(selected.length !== 2) return;
+  if(!preFieldsFilled()) return;
+  const type = currentActionType();
+  if(type === 'probe' && probeUsed >= 2){
+    log.push({ event:'probe_refused', reason:'probe上限(2回)超過のため実行拒否', at: nowIso() });
+    renderLog();
+    return;
+  }
+
+  const before = allPublicLineStates();
+  history.push({ board: cloneBoard(board), moveCount, probeUsed });
+
+  const [a,b] = selected;
+  const tmp = board[a.z][a.y][a.x];
+  board[a.z][a.y][a.x] = board[b.z][b.y][b.x];
+  board[b.z][b.y][b.x] = tmp;
+
+  moveCount++;
+  if(type === 'probe') probeUsed++;
+
+  const after = allPublicLineStates();
+
+  const entry = {
+    event: 'swap',
+    at: nowIso(),
+    pair: [ {z:a.z,y:a.y,x:a.x}, {z:b.z,y:b.y,x:b.x} ],
+    order: [1,2],
+    action_type: type,
+    observed_public_information: document.getElementById('obsInfo').value.trim(),
+    considered_pair_count: Number(document.getElementById('pairCount').value),
+    reason: document.getElementById('reason').value.trim(),
+    probe_purpose: type === 'probe' ? document.getElementById('probePurpose').value.trim() : null,
+    public_line_state_before: before,
+    public_line_state_after: after,
+    learned_from_change: null
+  };
+  log.push(entry);
+  pendingAfterSwap = entry;
+
+  selected = [];
+  document.getElementById('obsInfo').value = '';
+  document.getElementById('pairCount').value = '';
+  document.getElementById('reason').value = '';
+  document.getElementById('probePurpose').value = '';
+
+  checkCompletion();
+  render();
+});
+
+document.getElementById('learnedSubmitBtn').addEventListener('click', () => {
+  const val = document.getElementById('learnedFromChange').value.trim();
+  if(!val || !pendingAfterSwap) return;
+  pendingAfterSwap.learned_from_change = val;
+  pendingAfterSwap = null;
+  document.getElementById('learnedFromChange').value = '';
+  render();
+});
+
+function checkCompletion(){
+  let allMatch = true;
+  outer:
+  for(let z=0;z<5;z++) for(let y=0;y<5;y++) for(let x=0;x<5;x++){
+    if(board[z][y][x] !== CUBE_DATA[z][y][x]){ allMatch = false; break outer; }
+  }
+  if(allMatch){
+    status = 'cleared';
+    log.push({ event:'cleared', at: nowIso() });
+  }
+}
+
+document.getElementById('undoBtn').addEventListener('click', () => {
+  if(status !== 'active' || pendingAfterSwap || history.length===0) return;
+  const prev = history.pop();
+  board = prev.board;
+  moveCount = prev.moveCount;
+  // probeUsedは払い戻さない(仕様)
+  log.push({ event:'undo', at: nowIso() });
+  render();
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if(status !== 'active' || pendingAfterSwap) return;
+  const keepLog = log;
+  resetState(false);
+  log = keepLog;
+  log.push({ event:'reset', at: nowIso() });
+  render();
+});
+
+document.getElementById('stuckBtn').addEventListener('click', () => {
+  if(status !== 'active' || pendingAfterSwap) return;
+  status = 'stuck';
+  log.push({ event:'stuck', at: nowIso() });
+  render();
+});
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const payload = { move_count: moveCount, probe_used: probeUsed, status: status, log: log };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const aTag = document.createElement('a');
+  aTag.href = url;
+  aTag.download = `prototype11-log-${Date.now()}.json`;
+  document.body.appendChild(aTag);
+  aTag.click();
+  document.body.removeChild(aTag);
+  URL.revokeObjectURL(url);
+});
+
+function nowIso(){ return new Date().toISOString(); }
+
+// ============================================================
+// 起動
+// ============================================================
+resetState(true);
+render();
+
+})();
+</script>
+</body>
+</html>
