@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>候補プレイテスト — 五階層方陣</title>
+<meta name="robots" content="noindex">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   Prototype 07 (index.html, commit e837b53) のCSSを最小限だけ再利用。
+   問題データ・自動解読(sealed/decoded)関連のクラスは含めない。
+   ============================================================ */
+:root{
+  --bg:#0d0b0a; --panel:#181310; --panel-2:#1f1815; --line:#3a2c24;
+  --brass:#b08d57; --brass-dim:#7a6440; --bone:#e9e0cf; --bone-dim:#a89a84;
+  --ok:#5a8f6b; --warn:#c9a227; --bad:#b04a3f; --under:#3b7fc4;
+  --mono:'Fira Code',monospace; --serif:'Shippori Mincho',serif; --sans:'Zen Kaku Gothic New',sans-serif;
+}
+*{box-sizing:border-box;}
+html, body{height:100%;}
+body{
+  margin:0;
+  background:radial-gradient(ellipse at 50% 0%, #1a1412 0%, var(--bg) 60%);
+  color:var(--bone); font-family:var(--sans); overflow:hidden;
+}
+button{font-family:var(--sans);font-size:12px;letter-spacing:0.02em;background:var(--panel-2);border:1px solid var(--brass-dim);color:var(--bone);padding:8px 12px;border-radius:3px;cursor:pointer;transition:all .12s ease;}
+button:hover{background:#8a2331;border-color:#c23b4a;color:#fff;}
+button.ghost{background:transparent;}
+button.full{width:100%;margin-top:6px;}
+button:disabled{opacity:0.35;cursor:default;}
+button:disabled:hover{background:transparent;border-color:var(--brass-dim);color:var(--bone);}
+
+.app{display:flex;height:100%;}
+.board-area{flex:1;position:relative;overflow:hidden;display:flex;min-width:0;}
+.cube-wrap-outer{flex:1;position:relative;padding:16px 24px;overflow:auto;display:flex;align-items:center;justify-content:center;min-height:0;}
+#cubeWrap{position:relative;}
+
+.board-legend{
+  position:absolute;left:14px;bottom:14px;z-index:40;
+  background:rgba(15,11,9,0.82);border:1px solid var(--line);border-radius:5px;
+  padding:6px 10px;font-family:var(--mono);font-size:11px;color:var(--bone-dim);
+  pointer-events:none;white-space:nowrap;
+}
+.board-legend b.over{color:var(--bad);}
+.board-legend b.under{color:var(--under);}
+
+#crossLevelBadges{
+  position:absolute;z-index:60;display:none;flex-direction:column;gap:4px;pointer-events:none;
+}
+.cross-badge{
+  pointer-events:auto;font-family:var(--mono);font-size:10.5px;
+  background:rgba(24,19,16,0.94);border:1px solid var(--brass-dim);border-radius:4px;
+  padding:3px 8px;cursor:pointer;display:flex;gap:7px;align-items:center;white-space:nowrap;
+  transition:border-color .1s ease;
+}
+.cross-badge:hover{border-color:var(--brass);}
+.cross-badge.active{outline:2px solid var(--brass);}
+.cross-badge .cb-label{color:var(--bone);}
+.cross-badge .cb-result{font-weight:700;}
+.cross-badge .cb-result.eq{color:var(--ok);}
+.cross-badge .cb-result.over{color:var(--bad);}
+.cross-badge .cb-result.under{color:var(--under);}
+
+.sidebar{
+  width:340px;flex-shrink:0;height:100%;overflow-y:auto;
+  background:var(--panel);border-left:1px solid var(--line);padding:18px 16px 40px;
+}
+.side-title{font-family:var(--serif);font-weight:800;font-size:19px;color:var(--bone);}
+.side-sub{font-family:var(--mono);font-size:10px;color:var(--bone-dim);letter-spacing:0.08em;margin-bottom:16px;}
+.side-section{margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line);}
+.side-h{font-family:var(--serif);font-size:12.5px;color:var(--brass);margin-bottom:8px;letter-spacing:0.03em;}
+.caveat{font-size:10.5px;color:var(--bone-dim);background:var(--bg);border:1px solid var(--line);padding:8px 10px;border-radius:4px;line-height:1.7;}
+.controls-list{list-style:none;margin:0;padding:0;font-size:11px;color:var(--bone-dim);line-height:1.9;}
+.controls-list li::before{content:"・";color:var(--brass);margin-right:2px;}
+
+#lineProgress{
+  display:flex;align-items:baseline;justify-content:space-between;
+  font-family:var(--mono);font-size:13px;color:var(--bone);
+  background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:8px 12px;
+}
+#lineProgress .label{font-family:var(--serif);font-size:12px;color:var(--brass);}
+#lineProgress #solvedLineCount{font-weight:700;color:var(--bone);}
+#lineProgress.complete #solvedLineCount{color:var(--ok);}
+
+.clear-overlay{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;background:rgba(8,6,5,0.85);}
+.clear-overlay.hidden{display:none;}
+.clear-box{background:var(--panel);border:1px solid var(--brass);border-radius:8px;padding:32px 40px;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,0.6);}
+.clear-box h2{font-family:var(--serif);color:var(--brass);margin:0 0 8px;font-size:22px;}
+.clear-box p{color:var(--bone-dim);font-size:12.5px;margin:0 0 16px;}
+
+.cube-wrap{}
+.level-slot{}
+.level-card{background:transparent;border:none;padding:0;width:max-content;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;position:relative;}
+.level-svg{display:block;max-width:100%;height:auto;overflow:visible;pointer-events:none;}
+.iso-cell{cursor:pointer;pointer-events:none;}
+.iso-cell .cube-face{pointer-events:auto;}
+
+.tier-label{font-family:var(--serif);font-weight:700;font-size:30px;font-style:italic;fill:rgba(255,255,255,0.85);pointer-events:none;letter-spacing:0.03em;}
+
+.wall-label, .edge-label{font-family:var(--mono);font-weight:800;cursor:pointer;paint-order:stroke;stroke:rgba(0,0,0,0.65);stroke-width:1.4px;stroke-linejoin:round;font-size:20px;}
+.edge-label{font-size:20px;}
+.wall-label.stat-over, .edge-label.stat-over{fill:var(--bad);}
+.wall-label.stat-under, .edge-label.stat-under{fill:var(--under);}
+.band-indicator{pointer-events:none;}
+.band-indicator .band-dot{fill:currentColor;stroke:rgba(0,0,0,0.65);stroke-width:0.8px;}
+.band-indicator .band-chevron{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.band-indicator.stat-over{color:var(--bad);}
+.band-indicator.stat-under{color:var(--under);}
+.eq-symbol{pointer-events:none;}
+.eq-symbol .eq-bar{stroke:var(--ok);stroke-width:2.4px;stroke-linecap:round;}
+.row-wall-hit, .col-wall-hit, .diag-hit{cursor:pointer;}
+
+.iso-cell .cube-face{transition:filter .1s ease;}
+.iso-cell:hover .cube-face{filter:brightness(1.3);}
+.cube-label{font-family:var(--mono);font-weight:700;font-size:21px;pointer-events:none;fill:var(--bone);transition:opacity .15s ease, filter .15s ease;}
+
+/* movable/fixed の2種類だけ(Prototype 11には封印/解読の区別が無い) */
+.iso-cell.given{cursor:default;}
+.iso-cell.given .cube-label{fill:#ffffff;}
+.iso-cell.repair-unlocked .cube-face{stroke:var(--brass);stroke-width:1.8;stroke-dasharray:4,3;}
+.iso-cell.repair-unlocked .cube-label{fill:var(--warn);}
+.iso-cell.repair-completed .cube-face{stroke-dasharray:none;}
+.iso-cell.repair-completed .cube-label{fill:#ffffff;}
+
+.iso-cell.line-health-ok .cell-diag-outline{stroke:var(--ok);stroke-width:2.2;}
+.iso-cell.line-health-bad .cell-diag-outline{stroke:var(--bad);stroke-width:2.2;}
+
+.iso-cell.line-focus-target .cube-face{filter:brightness(1.6) drop-shadow(0 0 7px rgba(180,255,255,0.85));stroke:#eafcff !important;stroke-width:3 !important;}
+.iso-cell.line-focus-target .cube-label{filter:drop-shadow(0 0 5px rgba(180,255,255,0.9));}
+.iso-cell.line-focus-dimmed .cube-face{filter:brightness(0.42);}
+.iso-cell.line-focus-dimmed .cube-label{opacity:0.5;}
+.iso-cell.line-focus-dimmed .cell-diag-outline{opacity:0.3;}
+.iso-cell.line-focus-dimmed .cross-agg{opacity:0.25;}
+
+.iso-cell.cell-selected .cube-face{filter:brightness(1.5) saturate(1.3) !important;stroke:#fff !important;stroke-width:3 !important;stroke-dasharray:none;}
+
+.swap-ghost{position:fixed;z-index:2000;pointer-events:none;overflow:visible;filter:drop-shadow(0 8px 14px rgba(0,0,0,0.55));}
+.swap-ghost .cube-label{fill:var(--warn);}
+
+.level-slot.wave-glow{animation:waveGlow 260ms ease-out;}
+@keyframes waveGlow{0%{filter:brightness(1);}40%{filter:brightness(1.35) drop-shadow(0 0 22px rgba(120,224,160,0.85));}100%{filter:brightness(1);}}
+
+/* ---- 新規: 階層横断ラインの常時集約表示(cross_level_ui.normal_state) ----
+   セル中央の数字とは別位置(下寄り)へ小さく表示。↑↓件数のみ。0件は非表示。 */
+.cross-agg{font-family:var(--mono);font-weight:700;font-size:11px;pointer-events:none;paint-order:stroke;stroke:rgba(0,0,0,0.7);stroke-width:1.2px;}
+.cross-agg.cross-up{fill:var(--bad);}
+.cross-agg.cross-down{fill:var(--under);}
+.cross-agg.cross-both{fill:var(--brass);font-size:14px;}
+
+/* ---- 新規: 選択セルの階層横断ライン一覧パネル(盤面横へ展開) ---- */
+.cross-panel{
+  position:absolute;right:14px;top:60px;bottom:14px;width:230px;z-index:55;
+  background:rgba(15,11,9,0.9);border:1px solid var(--line);border-radius:6px;
+  padding:10px;overflow-y:auto;display:none;
+}
+.cross-panel.show{display:block;}
+.cross-panel-title{font-family:var(--serif);font-size:12px;color:var(--brass);margin-bottom:8px;}
+.cross-panel-item{
+  display:flex;justify-content:space-between;align-items:center;gap:8px;
+  padding:5px 7px;border-radius:4px;cursor:pointer;font-family:var(--mono);font-size:11px;
+  border:1px solid transparent;margin-bottom:3px;
+}
+.cross-panel-item:hover{background:rgba(176,141,87,0.12);}
+.cross-panel-item.active{border-color:var(--brass);background:rgba(176,141,87,0.15);}
+.cross-panel-item .cpi-type{color:var(--bone-dim);font-size:9.5px;}
+.cross-panel-item .cpi-result.eq{color:var(--ok);}
+.cross-panel-item .cpi-result.over{color:var(--bad);}
+.cross-panel-item .cpi-result.under{color:var(--under);}
+
+/* ---- 新規: 選択セルの診断固定表示パネル(swap_comparison用) ---- */
+.selected-fixed-panel{
+  position:absolute;left:14px;top:14px;z-index:56;max-width:250px;
+  background:rgba(15,11,9,0.85);border:1px solid var(--line);border-radius:5px;
+  padding:6px 10px;font-family:var(--mono);font-size:11px;color:var(--bone-dim);display:none;
+}
+.selected-fixed-panel.show{display:block;}
+.selected-fixed-panel b{color:var(--bone);}
+
+/* ---- 新規: 選択した階層横断ラインを5LEVEL間で結ぶ実線オーバーレイ ---- */
+#lineConnectorSvg{position:absolute;inset:0;pointer-events:none;z-index:45;display:none;}
+#lineConnectorSvg.show{display:block;}
+#lineConnectorSvg path{stroke:#eafcff;stroke-width:2;fill:none;filter:drop-shadow(0 0 4px rgba(180,255,255,0.7));stroke-dasharray:6,4;}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="board-area">
+    <div class="cube-wrap-outer">
+      <div class="cube-wrap" id="cubeWrap"></div>
+    </div>
+    <div class="board-legend">↑ <b class="over">315超過</b>　↓ <b class="under">315未満</b>　記号なし 315</div>
+    <div id="crossLevelBadges"></div>
+    <div class="cross-panel" id="crossPanel">
+      <div class="cross-panel-title">階層横断ライン一覧</div>
+      <div id="crossPanelList"></div>
+    </div>
+    <div class="selected-fixed-panel" id="selectedFixedPanel"></div>
+    <svg id="lineConnectorSvg"><path id="lineConnectorPath" d=""></path></svg>
+  </div>
+
+  <aside class="sidebar">
+    <div class="side-title">候補プレイテスト</div>
+    <div class="side-sub" id="sideSub">読み込み中…</div>
+
+    <div class="side-section">
+      <button id="resetBtn" class="ghost full">リセット(初期破損状態に戻す)</button>
+      <button id="undoBtn" class="ghost full" disabled>Undo(ひとつ戻す)</button>
+    </div>
+
+    <div class="side-section">
+      <div id="lineProgress"><span class="label">成立ライン</span><span><span id="solvedLineCount">0</span> / 109</span></div>
+    </div>
+
+    <div class="side-section">
+      <div class="side-h">操作方法</div>
+      <ul class="controls-list">
+        <li>左クリック：マスを選択</li>
+        <li>可動マスを2個クリック：数字を交換</li>
+        <li>不成立ライン(↑/↓)をクリックで対象マスを強調</li>
+        <li>Ctrl＋Z：ひとつ戻す</li>
+        <li>Escape：選択・強調を解除</li>
+        <li>マスの下の小さな記号は、そのマスを通る階層横断ライン(柱・断面対角線・空間対角線)の↑↓件数です</li>
+        <li>◆は↑と↓の両方が通るマスです</li>
+        <li>マスを選ぶと、右側に階層横断ライン一覧が展開されます</li>
+      </ul>
+      <div class="caveat" style="margin-top:10px;">
+        金色破線の数字は交換できる可動マスです。白文字は固定マスで、交換できません。
+        行・列・層内対角線は不成立(↑/↓)のときだけ各盤面の側面・角に記号が出ます。
+        柱・縦断面対角線・空間対角線の状態は、マス下の小さな記号と、選択時に展開される一覧で確認できます。
+        正確な合計・偏差の数値、正解値、推奨される交換は一切表示しません。
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div id="clearOverlay" class="clear-overlay hidden">
+  <div class="clear-box">
+    <h2>修復完了</h2>
+    <p>109ラインすべてが315になりました。</p>
+    <button id="clearCloseBtn" class="ghost">閉じる</button>
+  </div>
+</div>
+
+<script src="js/generator.js"></script>
+<script src="js/render.js"></script>
+<script src="js/repair/cube-data.js"></script>
+<script src="js/repair/lines109.js"></script>
+<script src="js/repair/measure.js"></script>
+<script>
+// ============================================================
+// candidate-01-playtest 専用コントローラ
+//
+// 再利用: cube-data.js(CUBE_DATA) / lines109.js(buildLines109, lineLabel) /
+//         measure.js(lineSum, measureLine, classifyDeviationBand, linesThroughCell,
+//                     analyzeAffectedLineChanges) / generator.js・render.js(座標計算・
+//                     SVG構築。onCellClick/onCellRightClick/onDepthClick/onTriagClickは
+//                     ここで定義する)
+// 不採用: js/repair/puzzle.js(Prototype07固有の12セル問題)、
+//         js/repair/repair-main.js(autoDecodeSealedCells/solvedViaSwapLineKeys/
+//         封印・解読UIを含むため、丸ごとは使わずswap/undo/reset/描画のロジックだけを
+//         Prototype 11ルールに合わせて書き直す)
+//
+// Prototype 11のルールに合わせ、偏差帯の閾値は30を明示的に使う
+// (measure.jsの既定値55はPrototype07固有の値のため使わない)。
+'use strict';
+
+const CANDIDATE_ID = 'candidate-01'; // ブラインド条件: この1問だけを接続する
+const DEVIATION_THRESHOLD = 30; // Prototype 11のルール(prototype11.html LARGE_THRESHOLD)と同一
+const ALL_LINES = buildLines109();
+const CROSS_LEVEL_TYPES = new Set(['pillar','xz-main','xz-anti','yz-main','yz-anti','space']);
+
+// ---- 候補データ(production-candidates.jsonが唯一の情報源。ここへ転記しない) ----
+let REPAIR_CELLS = null; // [{L,r,c,correctValue,initialValue}, ...] (candidate-01のcellsから変換)
+
+function cellDomKey(L,r,c){ return `${L}-${r}-${c}`; }
+function isRepairUnlocked(L,r,c){
+  return REPAIR_CELLS.some(cell => cell.L===L && cell.r===r && cell.c===c);
+}
+function repairCellDef(L,r,c){
+  return REPAIR_CELLS.find(cell => cell.L===L && cell.r===r && cell.c===c) || null;
+}
+function repairCellKey(L,r,c){ return cellDomKey(L,r,c); }
+function repairGridValue(state, L, r, c){
+  const def = repairCellDef(L,r,c);
+  if(def) return state[repairCellKey(L,r,c)];
+  return CUBE_DATA[L-1][r][c];
+}
+function createInitialRepairState(){
+  const state = {};
+  for(const cell of REPAIR_CELLS) state[repairCellKey(cell.L,cell.r,cell.c)] = cell.initialValue;
+  return state;
+}
+function swapRepairCells(state, a, b){
+  if(!isRepairUnlocked(a.L,a.r,a.c) || !isRepairUnlocked(b.L,b.r,b.c)) return state;
+  const ka = repairCellKey(a.L,a.r,a.c), kb = repairCellKey(b.L,b.r,b.c);
+  if(ka === kb) return state;
+  const next = Object.assign({}, state);
+  const tmp = next[ka]; next[ka] = next[kb]; next[kb] = tmp;
+  return next;
+}
+// Prototype 11には封印/解読の区別が無い: movable(可動) と fixed(固定) の2種類だけ。
+function cellPresentationState(L,r,c){ return isRepairUnlocked(L,r,c) ? 'movable' : 'fixed'; }
+
+// ---- 状態 ----
+let repairState = null;
+let selectedCell = null;
+let highlightedLineKey = null;
+let history = [];
+let cleared = false;
+let celebrating = false;
+let animating = false;
+let opGeneration = 0;
+let lastSwapFeedback = null; // Map<lineKey, 'unchanged'|'solved'|'closer'|'farther'>
+
+function cellKeyEq(a,b){ return !!a && !!b && a.L===b.L && a.r===b.r && a.c===b.c; }
+function lineTouchesCell(line, L, r, c){
+  const z=L-1,y=r,x=c;
+  return line.cells.some(cell => cell.z===z && cell.y===y && cell.x===x);
+}
+
+function buildCellLineIndex(){
+  const idx = {};
+  for(const line of ALL_LINES){
+    for(const cell of line.cells){
+      const key = cellDomKey(cell.z+1, cell.y, cell.x);
+      (idx[key] || (idx[key]=[])).push(line.key);
+    }
+  }
+  return idx;
+}
+const CELL_LINE_INDEX = buildCellLineIndex();
+
+function diagnoseLine(line){ return measureLine(repairState, line); }
+function diagStatusClass(status){ if(status==='=') return 'eq'; return status==='↑' ? 'over' : 'under'; }
+function computeAllLineStatuses(){ const m = new Map(); for(const line of ALL_LINES) m.set(line.key, diagnoseLine(line)); return m; }
+function computeCellHealth(lineStatuses){
+  const health = {};
+  for(const cell of REPAIR_CELLS){
+    const key = cellDomKey(cell.L,cell.r,cell.c);
+    const lines = CELL_LINE_INDEX[key] || [];
+    health[key] = lines.some(lk => lineStatuses.get(lk) !== '=') ? 'bad' : 'ok';
+  }
+  return health;
+}
+
+function findRowLine(L,r){ const z=L-1; return ALL_LINES.find(l=>l.type==='row'&&l.cells[0].z===z&&l.cells[0].y===r); }
+function findColLine(L,c){ const z=L-1; return ALL_LINES.find(l=>l.type==='col'&&l.cells[0].z===z&&l.cells[0].x===c); }
+function findLayerDiagMain(L){ const z=L-1; return ALL_LINES.find(l=>l.type==='xy-main'&&l.cells[0].z===z); }
+function findLayerDiagAnti(L){ const z=L-1; return ALL_LINES.find(l=>l.type==='xy-anti'&&l.cells[0].z===z); }
+
+// ---- 階層横断ライン: セル単位の常時集約(cross_level_ui.normal_state) ----
+function crossLevelAggregateForCell(L,r,c, lineStatuses){
+  const lines = linesThroughCell(ALL_LINES, L, r, c).filter(l => CROSS_LEVEL_TYPES.has(l.type));
+  let up=0, down=0;
+  for(const line of lines){
+    const st = lineStatuses.get(line.key);
+    if(st === '↑') up++;
+    else if(st === '↓') down++;
+  }
+  return { up, down };
+}
+
+// ---- 盤面インタラクション ----
+function onCellClick(L,r,c){
+  if(animating || celebrating) return;
+  const target = { L, r, c };
+  if(cellKeyEq(selectedCell, target)){ selectedCell = null; renderAll(); return; }
+  const canSwap = selectedCell && isRepairUnlocked(selectedCell.L,selectedCell.r,selectedCell.c) && isRepairUnlocked(L,r,c);
+  if(canSwap){
+    const source = selectedCell; selectedCell = null;
+    triggerSwap(source, target);
+  } else {
+    selectedCell = target; renderAll();
+  }
+}
+function onCellRightClick(){ /* noop */ }
+function onDepthClick(){ /* ミニスタックモーダルは本ページには無い */ }
+function onTriagClick(){ /* 同上 */ }
+
+function updateLockUI(){
+  const locked = animating || celebrating;
+  document.getElementById('undoBtn').disabled = locked || history.length===0;
+  document.getElementById('resetBtn').disabled = locked;
+}
+
+const SWAP_ANIM_MS = 220;
+function prefersReducedMotion(){ return typeof window.matchMedia==='function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+function cellGroupEl(L,r,c){ return document.querySelector(`.iso-cell[data-l="${L}"][data-r="${r}"][data-c="${c}"]`); }
+
+function makeTileGhost(faceEl, labelEl, value, rect){
+  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('class','swap-ghost');
+  let bbox; try{ bbox = faceEl.getBBox(); }catch(e){ bbox={x:0,y:0,width:1,height:1}; }
+  const pad = Math.max(bbox.width,bbox.height)*0.06;
+  svg.setAttribute('viewBox', `${bbox.x-pad} ${bbox.y-pad} ${bbox.width+pad*2} ${bbox.height+pad*2}`);
+  svg.style.left = rect.left+'px'; svg.style.top = rect.top+'px';
+  svg.style.width = rect.width+'px'; svg.style.height = rect.height+'px';
+  const face = faceEl.cloneNode(true); face.setAttribute('fill-opacity','0.96'); svg.appendChild(face);
+  const label = labelEl.cloneNode(true); label.textContent = value; svg.appendChild(label);
+  return svg;
+}
+function animateSwap(a,b,valueA,valueB){
+  const aEl=cellGroupEl(a.L,a.r,a.c), bEl=cellGroupEl(b.L,b.r,b.c);
+  const aFace=aEl&&aEl.querySelector('.cube-face'), bFace=bEl&&bEl.querySelector('.cube-face');
+  const aLabel=aEl&&aEl.querySelector('.cube-label'), bLabel=bEl&&bEl.querySelector('.cube-label');
+  const duration = prefersReducedMotion() ? 1 : SWAP_ANIM_MS;
+  if(!aFace||!bFace||!aLabel||!bLabel||typeof aFace.getBoundingClientRect!=='function'){
+    return new Promise(res=>setTimeout(res,duration));
+  }
+  const aRect=aFace.getBoundingClientRect(), bRect=bFace.getBoundingClientRect();
+  const ghostA=makeTileGhost(aFace,aLabel,valueA,aRect), ghostB=makeTileGhost(bFace,bLabel,valueB,bRect);
+  document.body.appendChild(ghostA); document.body.appendChild(ghostB);
+  aLabel.style.opacity='0'; bLabel.style.opacity='0';
+  const dx=bRect.left-aRect.left, dy=bRect.top-aRect.top;
+  const cleanup=()=>{ ghostA.remove(); ghostB.remove(); aLabel.style.opacity=''; bLabel.style.opacity=''; };
+  if(typeof ghostA.animate!=='function') return new Promise(res=>setTimeout(()=>{cleanup();res();},duration));
+  try{
+    const kfA=[{transform:'translate(0px,0px) scale(1)',offset:0},{transform:`translate(${dx/2}px, ${dy/2-12}px) scale(1.1)`,offset:0.5},{transform:`translate(${dx}px, ${dy}px) scale(1)`,offset:1}];
+    const kfB=[{transform:'translate(0px,0px) scale(1)',offset:0},{transform:`translate(${-dx/2}px, ${-dy/2+12}px) scale(1.1)`,offset:0.5},{transform:`translate(${-dx}px, ${-dy}px) scale(1)`,offset:1}];
+    const animA=ghostA.animate(kfA,{duration,easing:'ease-in-out',fill:'forwards'});
+    const animB=ghostB.animate(kfB,{duration,easing:'ease-in-out',fill:'forwards'});
+    return Promise.race([Promise.all([animA.finished,animB.finished]).catch(()=>{}), new Promise(res=>setTimeout(res,duration+60))]).then(cleanup);
+  }catch(e){ return new Promise(res=>setTimeout(()=>{cleanup();res();},duration)); }
+}
+
+function triggerSwap(a,b){
+  animating = true; updateLockUI();
+  const gen = ++opGeneration;
+  history.push({ state: repairState, selectedCell: a, highlightedLineKey, cleared, swapPair:[a,b] });
+  const valueA = repairGridValue(repairState,a.L,a.r,a.c), valueB = repairGridValue(repairState,b.L,b.r,b.c);
+  return animateSwap(a,b,valueA,valueB).then(()=>{
+    if(gen !== opGeneration) return;
+    const beforeGrid = repairState;
+    repairState = swapRepairCells(repairState, a, b);
+    const feedback = analyzeAffectedLineChanges(ALL_LINES, beforeGrid, repairState, [a,b]);
+    lastSwapFeedback = new Map(feedback.map(f=>[f.line.key, f.change]));
+    highlightedLineKey = null;
+    animating = false;
+    const solved = ALL_LINES.every(line => diagnoseLine(line) === '=');
+    if(solved){ runCelebration(gen); }
+    else { cleared=false; document.getElementById('clearOverlay').classList.add('hidden'); renderAll(); }
+  });
+}
+
+function undoSwap(){
+  if(animating || celebrating || history.length===0) return Promise.resolve();
+  const snap = history.pop();
+  const [a,b] = snap.swapPair;
+  animating = true; updateLockUI();
+  const gen = ++opGeneration;
+  const valueA = repairGridValue(repairState,a.L,a.r,a.c), valueB = repairGridValue(repairState,b.L,b.r,b.c);
+  return animateSwap(a,b,valueA,valueB).then(()=>{
+    if(gen !== opGeneration) return;
+    repairState = snap.state; selectedCell = snap.selectedCell; highlightedLineKey = snap.highlightedLineKey; cleared = snap.cleared;
+    celebrating = false; lastSwapFeedback = null;
+    document.getElementById('clearOverlay').classList.toggle('hidden', !cleared);
+    animating = false; renderAll();
+  });
+}
+
+function runCelebration(gen){
+  celebrating = true; updateLockUI(); renderAll();
+  const reduced = prefersReducedMotion();
+  const stagger = reduced?0:220, glowDuration = reduced?0:260, tailWait = reduced?0:150;
+  const groups = [['slot-5','slot-4'],['slot-3'],['slot-2','slot-1']];
+  groups.forEach((ids,i)=>{
+    setTimeout(()=>{
+      if(gen!==opGeneration) return;
+      for(const id of ids){ const el=document.getElementById(id); if(el) el.classList.add('wave-glow'); }
+      setTimeout(()=>{ if(gen!==opGeneration) return; for(const id of ids){ const el=document.getElementById(id); if(el) el.classList.remove('wave-glow'); } }, glowDuration);
+    }, i*stagger);
+  });
+  const totalWait = stagger*(groups.length-1)+glowDuration+tailWait;
+  setTimeout(()=>{
+    if(gen!==opGeneration) return;
+    celebrating=false; cleared=true;
+    document.getElementById('clearOverlay').classList.remove('hidden');
+    updateLockUI(); renderAll();
+  }, totalWait);
+}
+
+function toggleLineHighlight(lineKey){
+  highlightedLineKey = (highlightedLineKey===lineKey) ? null : lineKey;
+  renderAll();
+}
+
+function resetPuzzle(){
+  if(animating || celebrating) return;
+  opGeneration++;
+  repairState = createInitialRepairState();
+  selectedCell = null; highlightedLineKey = null; history = []; cleared = false; celebrating = false; lastSwapFeedback = null;
+  document.querySelectorAll('.swap-ghost').forEach(el=>el.remove());
+  document.querySelectorAll('.level-slot.wave-glow').forEach(el=>el.classList.remove('wave-glow'));
+  document.getElementById('clearOverlay').classList.add('hidden');
+  renderAll();
+}
+function clearSelection(){ selectedCell = null; highlightedLineKey = null; renderAll(); }
+
+// ---- 描画 ----
+function renderAll(){
+  const lineStatuses = computeAllLineStatuses();
+  const cellHealth = computeCellHealth(lineStatuses);
+  renderBoard(lineStatuses, cellHealth);
+  renderFlatLineLabels(lineStatuses);
+  renderCrossLevelBadges(lineStatuses);
+  renderCrossPanel(lineStatuses);
+  renderSelectedFixedPanel(lineStatuses);
+  renderLineConnector();
+  renderProgress(lineStatuses);
+  updateLockUI();
+}
+
+function renderBoard(lineStatuses, cellHealth){
+  const highlightLine = highlightedLineKey ? ALL_LINES.find(l=>l.key===highlightedLineKey) : null;
+  const finalized = cleared || celebrating;
+  for(let L=1; L<=5; L++){
+    for(let r=0;r<5;r++){
+      for(let c=0;c<5;c++){
+        const g = cellGroupEl(L,r,c);
+        if(!g) continue;
+        const key = cellDomKey(L,r,c);
+        g.dataset.key = key;
+        const state = cellPresentationState(L,r,c);
+        const unlocked = state === 'movable';
+        const value = repairGridValue(repairState,L,r,c);
+        const label = g.querySelector('.cube-label');
+        if(label) label.textContent = value;
+
+        g.classList.remove('empty');
+        g.classList.toggle('given', !unlocked);
+        g.classList.toggle('repair-unlocked', unlocked);
+        g.classList.toggle('repair-completed', unlocked && finalized);
+        g.classList.toggle('cell-selected', cellKeyEq(selectedCell, {L,r,c}));
+        g.classList.toggle('line-health-ok', !finalized && cellHealth[key]==='ok');
+        g.classList.toggle('line-health-bad', !finalized && cellHealth[key]==='bad');
+
+        g.classList.remove('line-focus-target','line-focus-dimmed');
+        if(highlightLine){
+          g.classList.add(lineTouchesCell(highlightLine,L,r,c) ? 'line-focus-target' : 'line-focus-dimmed');
+        }
+
+        // ---- 新規: 階層横断ラインの常時集約表示(数字とは別要素) ----
+        let agg = g.querySelector('.cross-agg');
+        if(!agg){
+          agg = document.createElementNS('http://www.w3.org/2000/svg','text');
+          agg.setAttribute('class','cross-agg');
+          agg.setAttribute('text-anchor','middle');
+          agg.setAttribute('dominant-baseline','central');
+          if(label){
+            const dy = parseFloat(label.getAttribute('y')) + 14;
+            agg.setAttribute('x', label.getAttribute('x'));
+            agg.setAttribute('y', dy);
+          }
+          g.appendChild(agg);
+        }
+        if(!finalized){
+          const { up, down } = crossLevelAggregateForCell(L,r,c, lineStatuses);
+          if(up>0 && down>0){ agg.textContent = '◆'; agg.setAttribute('class','cross-agg cross-both'); }
+          else if(up>0){ agg.textContent = `↑${up}`; agg.setAttribute('class','cross-agg cross-up'); }
+          else if(down>0){ agg.textContent = `↓${down}`; agg.setAttribute('class','cross-agg cross-down'); }
+          else { agg.textContent = ''; }
+        } else {
+          agg.textContent = '';
+        }
+      }
+    }
+  }
+}
+
+function setDirectText(el, text){
+  let node = null;
+  for(const child of el.childNodes){ if(child.nodeType===3){ node = child; break; } }
+  if(node) node.textContent = text; else el.insertBefore(document.createTextNode(text), el.firstChild);
+}
+
+// ---- band-indicator/eq-symbol描画(repair-main.jsの該当部分を再利用。
+//      封印/自動解読とは無関係な純粋UIヘルパーのため、そのまま使う) ----
+const BAND_DOT_GAP = 5;
+const BAND_DOT_OFFSET = 4.6;
+const CHEVRON_HALF_W = 3.6, CHEVRON_H = 2.3, CHEVRON_GAP = 3.6;
+const INDICATOR_COLUMN_WIDTH = CHEVRON_HALF_W * 2;
+const COMPOSITE_HALF_SHIFT = (BAND_DOT_GAP + INDICATOR_COLUMN_WIDTH) / 2;
+const EQ_HALF_W = 7, EQ_GAP = 3;
+
+function chevronPath(cx, cy, pointing){
+  const apexY = pointing==='up' ? cy-CHEVRON_H : cy+CHEVRON_H;
+  const baseY = pointing==='up' ? cy+CHEVRON_H : cy-CHEVRON_H;
+  return `M ${cx-CHEVRON_HALF_W} ${baseY} L ${cx} ${apexY} L ${cx+CHEVRON_HALF_W} ${baseY}`;
+}
+function updateCompositeCentering(group, textEl, showDots){
+  if(!group) return;
+  const anchorMode = textEl.getAttribute('text-anchor');
+  if(showDots && anchorMode==='middle') group.setAttribute('transform', `translate(${-COMPOSITE_HALF_SHIFT},0)`);
+  else group.removeAttribute('transform');
+}
+function updateEqSymbol(eqEl, textEl, show){
+  if(!eqEl) return;
+  if(!show){ eqEl.style.display='none'; return; }
+  const ax = parseFloat(textEl.getAttribute('x')), ay = parseFloat(textEl.getAttribute('y'));
+  const anchorMode = textEl.getAttribute('text-anchor');
+  const x1 = anchorMode==='start' ? ax : ax-EQ_HALF_W;
+  const x2 = anchorMode==='start' ? ax+EQ_HALF_W*2 : ax+EQ_HALF_W;
+  const bar1 = eqEl.querySelector('.eq-bar-1'), bar2 = eqEl.querySelector('.eq-bar-2');
+  if(bar1){ bar1.setAttribute('x1',x1); bar1.setAttribute('x2',x2); bar1.setAttribute('y1',ay-EQ_GAP); bar1.setAttribute('y2',ay-EQ_GAP); }
+  if(bar2){ bar2.setAttribute('x1',x1); bar2.setAttribute('x2',x2); bar2.setAttribute('y1',ay+EQ_GAP); bar2.setAttribute('y2',ay+EQ_GAP); }
+  eqEl.style.display = '';
+}
+function updateBandIndicator(indicatorEl, textEl, band, statClass, change){
+  if(!indicatorEl) return;
+  const chevronTop = indicatorEl.querySelector('.band-chevron-top');
+  const chevronBottom = indicatorEl.querySelector('.band-chevron-bottom');
+  if(!band){
+    indicatorEl.style.display='none';
+    if(chevronTop) chevronTop.style.display='none';
+    if(chevronBottom) chevronBottom.style.display='none';
+    return;
+  }
+  indicatorEl.style.display='';
+  indicatorEl.classList.remove('stat-over','stat-under');
+  if(statClass) indicatorEl.classList.add(`stat-${statClass}`);
+  let bbox; try{ bbox = textEl.getBBox(); }catch(e){ bbox={x:0,y:0,width:0,height:0}; }
+  const dotX = bbox.x+bbox.width+BAND_DOT_GAP, centerY = bbox.y+bbox.height/2;
+  const dot1 = indicatorEl.querySelector('.band-dot-1'), dot2 = indicatorEl.querySelector('.band-dot-2');
+  let topY, bottomY;
+  if(band===1){
+    if(dot1){ dot1.setAttribute('cx',dotX); dot1.setAttribute('cy',centerY); dot1.style.display=''; }
+    if(dot2) dot2.style.display='none';
+    topY = centerY; bottomY = centerY;
+  } else {
+    if(dot1){ dot1.setAttribute('cx',dotX); dot1.setAttribute('cy',centerY-BAND_DOT_OFFSET); dot1.style.display=''; }
+    if(dot2){ dot2.setAttribute('cx',dotX); dot2.setAttribute('cy',centerY+BAND_DOT_OFFSET); dot2.style.display=''; }
+    topY = centerY-BAND_DOT_OFFSET; bottomY = centerY+BAND_DOT_OFFSET;
+  }
+  const showChevrons = change==='closer' || change==='farther';
+  if(!showChevrons){
+    if(chevronTop) chevronTop.style.display='none';
+    if(chevronBottom) chevronBottom.style.display='none';
+    return;
+  }
+  const topPointing = change==='closer' ? 'down':'up', bottomPointing = change==='closer' ? 'up':'down';
+  if(chevronTop){ chevronTop.setAttribute('d', chevronPath(dotX, topY-CHEVRON_GAP, topPointing)); chevronTop.style.display=''; }
+  if(chevronBottom){ chevronBottom.setAttribute('d', chevronPath(dotX, bottomY+CHEVRON_GAP, bottomPointing)); chevronBottom.style.display=''; }
+}
+
+function applyFlatLabel(el, hit, line, lineStatuses, indicator, eqSymbol, group){
+  if(!line) return;
+  const status = lineStatuses.get(line.key);
+  const change = lastSwapFeedback ? lastSwapFeedback.get(line.key) : undefined;
+  el.classList.remove('stat-over','stat-under');
+
+  if(status === '=' && change === undefined){
+    setDirectText(el, ''); el.style.pointerEvents='none';
+    delete el.dataset.lineKey; delete el.dataset.swapChange;
+    if(hit){ hit.style.pointerEvents='none'; delete hit.dataset.lineKey; }
+    const title = el.querySelector('title'); if(title) title.remove();
+    updateBandIndicator(indicator, el, 0, null, undefined);
+    updateEqSymbol(eqSymbol, el, false);
+    updateCompositeCentering(group, el, false);
+    return;
+  }
+  if(status !== '=') el.classList.add(`stat-${diagStatusClass(status)}`);
+  setDirectText(el, status==='=' ? '' : status);
+  if(change !== undefined) el.dataset.swapChange = change; else delete el.dataset.swapChange;
+
+  if(status === '='){
+    el.style.pointerEvents='none'; delete el.dataset.lineKey;
+    if(hit){ hit.style.pointerEvents='none'; delete hit.dataset.lineKey; }
+    const title = el.querySelector('title'); if(title) title.remove();
+    updateBandIndicator(indicator, el, 0, null, undefined);
+    updateEqSymbol(eqSymbol, el, true);
+    updateCompositeCentering(group, el, false);
+    return;
+  }
+  el.style.pointerEvents='auto'; el.dataset.lineKey = line.key;
+  if(hit){ hit.style.pointerEvents='auto'; hit.dataset.lineKey = line.key; }
+  let title = el.querySelector('title');
+  if(!title){ title = document.createElementNS('http://www.w3.org/2000/svg','title'); el.appendChild(title); }
+  const meaning = status==='↑' ? '315超過' : '315未満';
+  title.textContent = `${lineLabel(line)}: ${meaning} — クリックで対象5マスを強調`;
+  const band = classifyDeviationBand(lineSum(repairState, line), DEVIATION_THRESHOLD).band;
+  updateBandIndicator(indicator, el, band, diagStatusClass(status), change);
+  updateEqSymbol(eqSymbol, el, false);
+  updateCompositeCentering(group, el, true);
+}
+
+function renderFlatLineLabels(lineStatuses){
+  document.querySelectorAll('.row-wall-label').forEach(el=>{
+    const L=Number(el.dataset.l), r=Number(el.dataset.r);
+    const hit=document.querySelector(`.row-wall-hit[data-l="${L}"][data-r="${r}"]`);
+    const group=el.parentNode;
+    applyFlatLabel(el, hit, findRowLine(L,r), lineStatuses, group.querySelector('.row-wall-band'), group.querySelector('.row-wall-eq'), group);
+  });
+  document.querySelectorAll('.col-wall-label').forEach(el=>{
+    const L=Number(el.dataset.l), c=Number(el.dataset.c);
+    const hit=document.querySelector(`.col-wall-hit[data-l="${L}"][data-c="${c}"]`);
+    const group=el.parentNode;
+    applyFlatLabel(el, hit, findColLine(L,c), lineStatuses, group.querySelector('.col-wall-band'), group.querySelector('.col-wall-eq'), group);
+  });
+  document.querySelectorAll('.diag-sum-main').forEach(el=>{
+    const L=Number(el.dataset.l);
+    const hit=document.querySelector(`.diag-hit-main[data-l="${L}"]`);
+    const group=el.parentNode;
+    applyFlatLabel(el, hit, findLayerDiagMain(L), lineStatuses, group.querySelector('.diag-band-main'), group.querySelector('.diag-eq-main'), group);
+  });
+  document.querySelectorAll('.diag-sum-anti').forEach(el=>{
+    const L=Number(el.dataset.l);
+    const hit=document.querySelector(`.diag-hit-anti[data-l="${L}"]`);
+    const group=el.parentNode;
+    applyFlatLabel(el, hit, findLayerDiagAnti(L), lineStatuses, group.querySelector('.diag-band-anti'), group.querySelector('.diag-eq-anti'), group);
+  });
+}
+
+function wireFlatLineLabels(){
+  const selectors = ['.row-wall-label','.col-wall-label','.diag-sum-main','.diag-sum-anti','.row-wall-hit','.col-wall-hit','.diag-hit'];
+  document.querySelectorAll(selectors.join(',')).forEach(el=>{
+    el.addEventListener('click', ()=>{ const key=el.dataset.lineKey; if(key) toggleLineHighlight(key); });
+  });
+}
+
+function buildCbResultHtml(status, band){
+  if(status==='=') return `<span class="eq-symbol-html">＝</span>`;
+  return `<span class="cb-arrow">${status}${band ? (band===2?' ●●':' ●') : ''}</span>`;
+}
+
+// 選択セル付近の階層横断ラインbadge(Prototype07既存パターンを踏襲)
+function renderCrossLevelBadges(lineStatuses){
+  const container = document.getElementById('crossLevelBadges');
+  container.innerHTML = '';
+  if(!selectedCell){ container.style.display='none'; return; }
+  const { L, r, c } = selectedCell;
+  const lines = linesThroughCell(ALL_LINES, L, r, c).filter(l => CROSS_LEVEL_TYPES.has(l.type));
+  if(lines.length===0){ container.style.display='none'; return; }
+  const cellEl = cellGroupEl(L,r,c);
+  const face = cellEl && cellEl.querySelector('.cube-face');
+  const boardArea = document.querySelector('.board-area');
+  if(!face || !boardArea || typeof face.getBoundingClientRect !== 'function'){ container.style.display='none'; return; }
+  container.style.display='flex';
+  for(const line of lines){
+    const status = lineStatuses.get(line.key);
+    const badge = document.createElement('div');
+    badge.className = 'cross-badge';
+    if(highlightedLineKey===line.key) badge.classList.add('active');
+    const band = status==='=' ? 0 : classifyDeviationBand(lineSum(repairState,line), DEVIATION_THRESHOLD).band;
+    badge.innerHTML = `<span class="cb-label">${lineLabel(line)}</span><span class="cb-result ${diagStatusClass(status)}">${buildCbResultHtml(status,band)}</span>`;
+    badge.addEventListener('click', ()=>toggleLineHighlight(line.key));
+    container.appendChild(badge);
+  }
+  const faceRect = face.getBoundingClientRect(), boardRect = boardArea.getBoundingClientRect();
+  const badgeRect = container.getBoundingClientRect();
+  const MARGIN=8, w=badgeRect.width, h=badgeRect.height;
+  let left = faceRect.right - boardRect.left + 10;
+  let top = faceRect.top - boardRect.top;
+  if(left+w > boardRect.width-MARGIN) left = faceRect.left - boardRect.left - w - 10;
+  left = Math.min(Math.max(left,MARGIN), Math.max(MARGIN, boardRect.width-MARGIN-w));
+  if(top+h > boardRect.height-MARGIN) top = boardRect.height-MARGIN-h;
+  top = Math.min(Math.max(top,MARGIN), Math.max(MARGIN, boardRect.height-MARGIN-h));
+  container.style.left = left+'px'; container.style.top = top+'px';
+}
+
+// ---- 新規: cross_level_ui.selected_cell の「盤面横へ展開する一覧」 ----
+function renderCrossPanel(lineStatuses){
+  const panel = document.getElementById('crossPanel');
+  const list = document.getElementById('crossPanelList');
+  list.innerHTML = '';
+  if(!selectedCell){ panel.classList.remove('show'); return; }
+  const { L, r, c } = selectedCell;
+  const lines = linesThroughCell(ALL_LINES, L, r, c).filter(l => CROSS_LEVEL_TYPES.has(l.type));
+  if(lines.length===0){ panel.classList.remove('show'); return; }
+  panel.classList.add('show');
+  for(const line of lines){
+    const status = lineStatuses.get(line.key);
+    const item = document.createElement('div');
+    item.className = 'cross-panel-item';
+    if(highlightedLineKey === line.key) item.classList.add('active');
+    const typeLabel = { pillar:'柱', 'xz-main':'縦断面', 'xz-anti':'縦断面', 'yz-main':'縦断面', 'yz-anti':'縦断面', space:'空間対角線' }[line.type] || line.type;
+    item.innerHTML = `<span class="cpi-type">${typeLabel}</span><span>${lineLabel(line)}</span><span class="cpi-result ${diagStatusClass(status)}">${status==='=' ? '＝' : status}</span>`;
+    item.addEventListener('click', ()=> toggleLineHighlight(line.key));
+    list.appendChild(item);
+  }
+}
+
+// ---- 新規: swap_comparison用、選択セルの診断固定表示 ----
+function renderSelectedFixedPanel(lineStatuses){
+  const panel = document.getElementById('selectedFixedPanel');
+  if(!selectedCell){ panel.classList.remove('show'); panel.innerHTML=''; return; }
+  const { L, r, c } = selectedCell;
+  const flatLines = [findRowLine(L,r), findColLine(L,c)];
+  if(r===c) flatLines.push(findLayerDiagMain(L));
+  if(r+c===4) flatLines.push(findLayerDiagAnti(L));
+  const cross = crossLevelAggregateForCell(L,r,c, lineStatuses);
+  const flatSummary = flatLines.filter(Boolean).map(l => lineStatuses.get(l.key)).map(s=>s==='='?'＝':s).join(' / ');
+  panel.classList.add('show');
+  panel.innerHTML = `<b>選択中: L${L} (${r+1},${c+1})</b><br>面内: ${flatSummary}<br>階層横断: ↑${cross.up} ↓${cross.down}`;
+}
+
+// ---- 新規: 選択ラインを5LEVEL間で結ぶ実線(cross_level_ui.selected_cell) ----
+function renderLineConnector(){
+  const svg = document.getElementById('lineConnectorSvg');
+  const path = document.getElementById('lineConnectorPath');
+  if(!highlightedLineKey){ svg.classList.remove('show'); path.setAttribute('d',''); return; }
+  const line = ALL_LINES.find(l=>l.key===highlightedLineKey);
+  if(!line || !CROSS_LEVEL_TYPES.has(line.type)){ svg.classList.remove('show'); path.setAttribute('d',''); return; }
+  const boardArea = document.querySelector('.board-area');
+  const boardRect = boardArea.getBoundingClientRect();
+  const pts = [];
+  for(const cell of line.cells){
+    const L = cell.z+1, r = cell.y, c = cell.x;
+    const g = cellGroupEl(L,r,c);
+    const face = g && g.querySelector('.cube-face');
+    if(!face || typeof face.getBoundingClientRect !== 'function') continue;
+    const rect = face.getBoundingClientRect();
+    pts.push({ x: rect.left + rect.width/2 - boardRect.left, y: rect.top + rect.height/2 - boardRect.top });
+  }
+  if(pts.length < 2){ svg.classList.remove('show'); path.setAttribute('d',''); return; }
+  svg.classList.add('show');
+  svg.setAttribute('width', boardRect.width);
+  svg.setAttribute('height', boardRect.height);
+  const d = pts.map((p,i)=> (i===0?'M':'L') + `${p.x} ${p.y}`).join(' ');
+  path.setAttribute('d', d);
+}
+
+function renderProgress(lineStatuses){
+  const solved = ALL_LINES.reduce((acc,line)=> acc + (lineStatuses.get(line.key)==='=' ? 1:0), 0);
+  const countEl = document.getElementById('solvedLineCount');
+  const container = document.getElementById('lineProgress');
+  if(countEl) countEl.textContent = solved;
+  if(container) container.classList.toggle('complete', solved===ALL_LINES.length);
+}
+
+function isTypingTarget(el){ if(!el) return false; const tag=el.tagName; return tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA'||el.isContentEditable; }
+function onKeyDown(e){
+  if(isTypingTarget(document.activeElement)) return;
+  if(e.key==='Escape'){ clearSelection(); return; }
+  const isUndoCombo = (e.ctrlKey||e.metaKey) && !e.altKey && (e.key==='z'||e.key==='Z');
+  if(isUndoCombo){ e.preventDefault(); undoSwap(); }
+}
+
+// ---- 初期化: production-candidates.jsonからcandidate-01だけを取得する ----
+async function loadCandidateAndInit(){
+  const res = await fetch('tools/repair/production-candidates.json');
+  const data = await res.json();
+  const candidate = data.candidates.find(c => c.publicId === CANDIDATE_ID);
+  if(!candidate) throw new Error(`candidate ${CANDIDATE_ID} が見つからない`);
+  REPAIR_CELLS = candidate.cells.map(cell => ({
+    L: cell.z + 1, r: cell.y, c: cell.x,
+    correctValue: cell.correctValue, initialValue: cell.initialValue,
+  }));
+  repairState = createInitialRepairState();
+
+  document.getElementById('sideSub').textContent =
+    `REPAIR PLAYTEST — 可動${REPAIR_CELLS.length}・固定${125-REPAIR_CELLS.length}`;
+
+  buildCube();
+  wireFlatLineLabels();
+  renderAll();
+  document.getElementById('resetBtn').addEventListener('click', resetPuzzle);
+  document.getElementById('undoBtn').addEventListener('click', undoSwap);
+  document.getElementById('clearCloseBtn').addEventListener('click', ()=>{
+    document.getElementById('clearOverlay').classList.add('hidden');
+  });
+  document.addEventListener('keydown', onKeyDown);
+  window.addEventListener('resize', ()=> renderAll());
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  loadCandidateAndInit().catch(err=>{
+    console.error(err);
+    document.getElementById('sideSub').textContent = '読み込みエラー';
+  });
+});
+</script>
+</body>
+</html>
