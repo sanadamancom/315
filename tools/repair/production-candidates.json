@@ -1,0 +1,531 @@
+{
+  "schemaVersion": 1,
+  "generatedFrom": {
+    "masterSeed": 20260723,
+    "script": "search-production-candidates.js"
+  },
+  "candidates": [
+    {
+      "schemaVersion": 1,
+      "publicId": "candidate-01",
+      "classification": "provisional",
+      "source": {
+        "masterSeed": 20260723,
+        "trial": 55477,
+        "evaluatedInRole": 2,
+        "groupCount": 2
+      },
+      "cells": [
+        {
+          "z": 1,
+          "y": 0,
+          "x": 0,
+          "correctValue": 91,
+          "initialValue": 91
+        },
+        {
+          "z": 1,
+          "y": 0,
+          "x": 3,
+          "correctValue": 6,
+          "initialValue": 6
+        },
+        {
+          "z": 1,
+          "y": 1,
+          "x": 0,
+          "correctValue": 52,
+          "initialValue": 74
+        },
+        {
+          "z": 1,
+          "y": 1,
+          "x": 4,
+          "correctValue": 13,
+          "initialValue": 13
+        },
+        {
+          "z": 1,
+          "y": 3,
+          "x": 0,
+          "correctValue": 26,
+          "initialValue": 26
+        },
+        {
+          "z": 1,
+          "y": 3,
+          "x": 3,
+          "correctValue": 44,
+          "initialValue": 96
+        },
+        {
+          "z": 1,
+          "y": 3,
+          "x": 4,
+          "correctValue": 114,
+          "initialValue": 114
+        },
+        {
+          "z": 2,
+          "y": 2,
+          "x": 0,
+          "correctValue": 89,
+          "initialValue": 44
+        },
+        {
+          "z": 2,
+          "y": 2,
+          "x": 4,
+          "correctValue": 37,
+          "initialValue": 37
+        },
+        {
+          "z": 2,
+          "y": 3,
+          "x": 0,
+          "correctValue": 32,
+          "initialValue": 32
+        },
+        {
+          "z": 2,
+          "y": 3,
+          "x": 4,
+          "correctValue": 19,
+          "initialValue": 19
+        },
+        {
+          "z": 3,
+          "y": 1,
+          "x": 0,
+          "correctValue": 12,
+          "initialValue": 12
+        },
+        {
+          "z": 3,
+          "y": 1,
+          "x": 4,
+          "correctValue": 100,
+          "initialValue": 100
+        },
+        {
+          "z": 3,
+          "y": 2,
+          "x": 0,
+          "correctValue": 103,
+          "initialValue": 103
+        },
+        {
+          "z": 3,
+          "y": 2,
+          "x": 4,
+          "correctValue": 96,
+          "initialValue": 89
+        },
+        {
+          "z": 3,
+          "y": 3,
+          "x": 0,
+          "correctValue": 113,
+          "initialValue": 113
+        },
+        {
+          "z": 3,
+          "y": 3,
+          "x": 4,
+          "correctValue": 74,
+          "initialValue": 121
+        },
+        {
+          "z": 4,
+          "y": 0,
+          "x": 0,
+          "correctValue": 121,
+          "initialValue": 52
+        },
+        {
+          "z": 4,
+          "y": 0,
+          "x": 3,
+          "correctValue": 20,
+          "initialValue": 20
+        },
+        {
+          "z": 4,
+          "y": 3,
+          "x": 0,
+          "correctValue": 78,
+          "initialValue": 78
+        },
+        {
+          "z": 4,
+          "y": 3,
+          "x": 3,
+          "correctValue": 24,
+          "initialValue": 24
+        }
+      ],
+      "structuralMetrics": {
+        "movableCellCount": 21,
+        "groupCount": 2,
+        "rootStrongCompatibleCount": 23,
+        "minSwaps": 4,
+        "singleLineCount": 0
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "publicId": "candidate-02",
+      "classification": "provisional",
+      "source": {
+        "masterSeed": 20260723,
+        "trial": 109793,
+        "evaluatedInRole": 4,
+        "groupCount": 2
+      },
+      "cells": [
+        {
+          "z": 0,
+          "y": 1,
+          "x": 0,
+          "correctValue": 115,
+          "initialValue": 115
+        },
+        {
+          "z": 0,
+          "y": 1,
+          "x": 4,
+          "correctValue": 97,
+          "initialValue": 97
+        },
+        {
+          "z": 0,
+          "y": 3,
+          "x": 0,
+          "correctValue": 66,
+          "initialValue": 99
+        },
+        {
+          "z": 0,
+          "y": 3,
+          "x": 4,
+          "correctValue": 48,
+          "initialValue": 48
+        },
+        {
+          "z": 1,
+          "y": 2,
+          "x": 1,
+          "correctValue": 118,
+          "initialValue": 60
+        },
+        {
+          "z": 1,
+          "y": 2,
+          "x": 3,
+          "correctValue": 123,
+          "initialValue": 123
+        },
+        {
+          "z": 1,
+          "y": 4,
+          "x": 1,
+          "correctValue": 17,
+          "initialValue": 17
+        },
+        {
+          "z": 1,
+          "y": 4,
+          "x": 3,
+          "correctValue": 73,
+          "initialValue": 73
+        },
+        {
+          "z": 2,
+          "y": 1,
+          "x": 0,
+          "correctValue": 107,
+          "initialValue": 107
+        },
+        {
+          "z": 2,
+          "y": 1,
+          "x": 2,
+          "correctValue": 38,
+          "initialValue": 38
+        },
+        {
+          "z": 2,
+          "y": 3,
+          "x": 0,
+          "correctValue": 32,
+          "initialValue": 32
+        },
+        {
+          "z": 2,
+          "y": 3,
+          "x": 2,
+          "correctValue": 88,
+          "initialValue": 118
+        },
+        {
+          "z": 3,
+          "y": 2,
+          "x": 1,
+          "correctValue": 3,
+          "initialValue": 3
+        },
+        {
+          "z": 3,
+          "y": 2,
+          "x": 3,
+          "correctValue": 8,
+          "initialValue": 66
+        },
+        {
+          "z": 3,
+          "y": 4,
+          "x": 1,
+          "correctValue": 120,
+          "initialValue": 120
+        },
+        {
+          "z": 3,
+          "y": 4,
+          "x": 3,
+          "correctValue": 49,
+          "initialValue": 49
+        },
+        {
+          "z": 4,
+          "y": 1,
+          "x": 0,
+          "correctValue": 29,
+          "initialValue": 29
+        },
+        {
+          "z": 4,
+          "y": 1,
+          "x": 2,
+          "correctValue": 122,
+          "initialValue": 122
+        },
+        {
+          "z": 4,
+          "y": 1,
+          "x": 4,
+          "correctValue": 11,
+          "initialValue": 11
+        },
+        {
+          "z": 4,
+          "y": 3,
+          "x": 0,
+          "correctValue": 78,
+          "initialValue": 78
+        },
+        {
+          "z": 4,
+          "y": 3,
+          "x": 2,
+          "correctValue": 99,
+          "initialValue": 8
+        },
+        {
+          "z": 4,
+          "y": 3,
+          "x": 4,
+          "correctValue": 60,
+          "initialValue": 88
+        }
+      ],
+      "structuralMetrics": {
+        "movableCellCount": 22,
+        "groupCount": 2,
+        "rootStrongCompatibleCount": 51,
+        "minSwaps": 4,
+        "singleLineCount": 0
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "publicId": "candidate-03",
+      "classification": "provisional",
+      "source": {
+        "masterSeed": 20260723,
+        "trial": 129122,
+        "evaluatedInRole": 1,
+        "groupCount": 2
+      },
+      "cells": [
+        {
+          "z": 0,
+          "y": 1,
+          "x": 0,
+          "correctValue": 115,
+          "initialValue": 115
+        },
+        {
+          "z": 0,
+          "y": 1,
+          "x": 4,
+          "correctValue": 97,
+          "initialValue": 97
+        },
+        {
+          "z": 0,
+          "y": 2,
+          "x": 0,
+          "correctValue": 42,
+          "initialValue": 84
+        },
+        {
+          "z": 0,
+          "y": 2,
+          "x": 4,
+          "correctValue": 75,
+          "initialValue": 75
+        },
+        {
+          "z": 1,
+          "y": 2,
+          "x": 0,
+          "correctValue": 30,
+          "initialValue": 30
+        },
+        {
+          "z": 1,
+          "y": 2,
+          "x": 4,
+          "correctValue": 23,
+          "initialValue": 38
+        },
+        {
+          "z": 1,
+          "y": 3,
+          "x": 0,
+          "correctValue": 26,
+          "initialValue": 26
+        },
+        {
+          "z": 1,
+          "y": 3,
+          "x": 4,
+          "correctValue": 114,
+          "initialValue": 114
+        },
+        {
+          "z": 2,
+          "y": 1,
+          "x": 0,
+          "correctValue": 107,
+          "initialValue": 107
+        },
+        {
+          "z": 2,
+          "y": 1,
+          "x": 2,
+          "correctValue": 38,
+          "initialValue": 99
+        },
+        {
+          "z": 2,
+          "y": 3,
+          "x": 0,
+          "correctValue": 32,
+          "initialValue": 32
+        },
+        {
+          "z": 2,
+          "y": 3,
+          "x": 2,
+          "correctValue": 88,
+          "initialValue": 88
+        },
+        {
+          "z": 3,
+          "y": 1,
+          "x": 0,
+          "correctValue": 12,
+          "initialValue": 12
+        },
+        {
+          "z": 3,
+          "y": 1,
+          "x": 4,
+          "correctValue": 100,
+          "initialValue": 100
+        },
+        {
+          "z": 3,
+          "y": 2,
+          "x": 0,
+          "correctValue": 103,
+          "initialValue": 103
+        },
+        {
+          "z": 3,
+          "y": 2,
+          "x": 4,
+          "correctValue": 96,
+          "initialValue": 42
+        },
+        {
+          "z": 4,
+          "y": 1,
+          "x": 0,
+          "correctValue": 29,
+          "initialValue": 29
+        },
+        {
+          "z": 4,
+          "y": 1,
+          "x": 2,
+          "correctValue": 122,
+          "initialValue": 122
+        },
+        {
+          "z": 4,
+          "y": 2,
+          "x": 0,
+          "correctValue": 51,
+          "initialValue": 51
+        },
+        {
+          "z": 4,
+          "y": 2,
+          "x": 4,
+          "correctValue": 84,
+          "initialValue": 96
+        },
+        {
+          "z": 4,
+          "y": 3,
+          "x": 0,
+          "correctValue": 78,
+          "initialValue": 78
+        },
+        {
+          "z": 4,
+          "y": 3,
+          "x": 2,
+          "correctValue": 99,
+          "initialValue": 23
+        },
+        {
+          "z": 4,
+          "y": 3,
+          "x": 4,
+          "correctValue": 60,
+          "initialValue": 60
+        }
+      ],
+      "structuralMetrics": {
+        "movableCellCount": 23,
+        "groupCount": 2,
+        "rootStrongCompatibleCount": 64,
+        "minSwaps": 4,
+        "singleLineCount": 0
+      }
+    }
+  ]
+}
